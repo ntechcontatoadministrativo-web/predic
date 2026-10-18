@@ -1,0 +1,20 @@
+{
+  "name": "predic",
+  "version": "3.0.0",
+  "private": true,
+  "description": "PREDIC · Estudos de viabilidade imobiliária com IA integrada",
+  "type": "module",
+  "scripts": {
+    "start": "node server/server.mjs",
+    "dev": "node --watch server/server.mjs",
+    "build": "node scripts/build.mjs",
+    "test": "node --test tests/*.test.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.135.0",
+    "zod": "^4.6.7"
+  }
+}

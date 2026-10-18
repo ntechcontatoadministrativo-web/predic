@@ -1,0 +1,4 @@
+# Netlify publica só o front-end (app/). A IA precisa do servidor Node (server/) e fica desligada nesta versão.
+[build]
+  publish = "app"
+  command = ""
