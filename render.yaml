@@ -1,0 +1,18 @@
+# Render Blueprint: um Web Service Node que roda server/server.mjs (front-end + IA).
+services:
+  - type: web
+    name: predic
+    runtime: node
+    plan: free
+    buildCommand: npm ci --omit=dev
+    startCommand: npm start
+    healthCheckPath: /api/status
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: HOST
+        value: 0.0.0.0
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: PREDIC_ACCESS_KEY
+        sync: false
