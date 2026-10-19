@@ -19,7 +19,7 @@ const prodSel = st => st.produtos[Math.min(st.prodSel || 0, st.produtos.length -
 // Cálculo rápido (sem matrizes de sensibilidade): usado pela IA e pela biblioteca de estudos.
 function quick(st, P = prodSel(st)) {
   const C = st.comite || COMITE0, SC = st.cenarios || SCEN0;
-  const pIn = pInOf(P, st.tma), R = engine(applyScen(pIn, 'base', SC)), Rp = engine(applyScen(pIn, 'pessimista', SC));
+  const pIn = pInOf(P, st.tma, premOf(st)), R = engine(applyScen(pIn, 'base', SC)), Rp = engine(applyScen(pIn, 'pessimista', SC));
   const crit = { tir: ok(R.tir) && R.tir * 100 >= C.tirMin, vpl: R.vpl > 0, margem: R.margem * 100 >= C.margemMin, expo: Math.abs(R.expo) / R.vgv * 100 <= C.expoMax, payback: R.payback <= C.paybackMax };
   const sc = [crit.tir, crit.vpl, crit.margem, crit.expo].filter(Boolean).length;
   const veredito = sc === 4 && crit.payback ? 'Aprovar' : sc >= 2 ? 'Aprovar com ressalvas' : 'Reprovar';
@@ -66,6 +66,8 @@ function contextoIA(st, M, real) {
   const pend = l => l.filter(x => x.k !== 'ok').map(x => x.nome + ' [' + NIVTXT[x.k] + (x.status ? ': ' + x.status : '') + ']');
   return {
     secaoAberta: (SECS.find(s => s[0] === st.sec) || SECS[0])[1],
+    premissasMotor: (P => ({ recebimentoNaPlanta: P.recAto + '% ato, ' + P.recObra + '% durante a obra, ' + Math.max(0, 100 - P.recAto - P.recObra) + '% nas chaves', posEntrega: P.posAto + '% à vista e saldo repassado em ' + P.posRepasse + ' meses',
+      distrato: 'retenção de ' + P.distRetencao + '% do pago, custo de ' + P.distCusto + '%, revenda de ' + P.distRevenda + '% em ' + P.distRevendaMeses + ' meses', curvaObra: (CURVAS[P.curva] || CURVAS.sino)[0], areaEquivalente_pct: P.aeqFator, mesesAntesDaObra: P.preObra }))(M.PM || premOf(st)),
     empreendimento: { nome: E.nome, codigo: E.codigo, endereco: E.endereco, lote: E.lote, areaTerreno_m2: E.area, zona: E.zona, classe: E.classe, CA: E.ca, TO_pct: E.to, gabarito_m: E.gabarito, matricula: E.matricula, cartorio: E.cartorio, prazoAteRegistro_meses: E.prazoReg, demandaAnual_domicilios: E.demanda, rendaMedia_milReais: E.renda, perfil: [E.perfil, E.perfilDesc].filter(Boolean).join(' · ') },
     produtoSelecionado: {
       nome: PR.nome, descricao: PR.descr, tipo: PR.tipoEdif, padrao: PR.padrao, programa: PR.programa === 'mcmv' ? 'MCMV faixa ' + PR.faixa + ' (teto R$ ' + num(PR.teto) + ')' : 'mercado (SBPE)',

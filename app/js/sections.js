@@ -252,12 +252,12 @@ function Produto({ ctx }) {
         <${Field} label="Nome"><${Txt} className="box" value=${PR.nome} onChange=${v => setProd({ nome: v })} /><//>
         <${Field} label="Tipo de edificação"><select className="in box" value=${PR.tipoEdif} onChange=${e => setProd({ tipoEdif: e.target.value })}>${['torre residencial', 'duas torres residenciais', 'condomínio de casas', 'edifício baixo (até 4 pav.)', 'uso misto (residencial + lojas)'].map(o => html`<option key=${o}>${o}</option>`)}</select><//>
         <${Field} label="Padrão"><select className="in box" value=${PR.padrao} onChange=${e => setProd({ padrao: e.target.value })}>${['econômico', 'médio', 'médio-alto', 'alto', 'luxo'].map(o => html`<option key=${o}>${o}</option>`)}</select><//>
-        <${Field} label="Programa"><select className="in box" value=${PR.programa} onChange=${e => { const v = e.target.value; setProd(v === 'mcmv' ? { programa: 'mcmv', faixa: PR.faixa || 3, teto: PR.teto || TETO_MCMV[PR.faixa || 3], custos: { ...PR.custos, ret: 1 } } : { programa: 'mercado', custos: { ...PR.custos, ret: 4 } }); }}><option value="mercado">Mercado (SBPE)</option><option value="mcmv">Minha Casa Minha Vida</option></select><//>
+        <${Field} label="Programa"><select className="in box" value=${PR.programa} onChange=${e => { const v = e.target.value; setProd(v === 'mcmv' ? { programa: 'mcmv', faixa: PR.faixa || 3, teto: PR.teto || M.PM.tetoMcmv[PR.faixa || 3], custos: { ...PR.custos, ret: 1 } } : { programa: 'mercado', custos: { ...PR.custos, ret: 4 } }); }}><option value="mercado">Mercado (SBPE)</option><option value="mcmv">Minha Casa Minha Vida</option></select><//>
         <${Field} label="Pavimentos-tipo"><${Num} className="box" value=${PR.pavimentos} onChange=${v => setProd({ pavimentos: v })} min=${1} /><//>
         <${Field} label="Unidades por andar"><${Num} className="box" value=${PR.unAndar} onChange=${v => setProd({ unAndar: v })} min=${1} /><//>
         <${Field} label="Área comum (m²)"><${Num} className="box" value=${PR.comum} onChange=${v => setProd({ comum: v })} min=${0} /><//>
         <${Field} label="Área de garagem (m²) · vagas"><div style=${{ display: 'flex', gap: 4 }}><${Num} className="box" value=${PR.garagem} onChange=${v => setProd({ garagem: v })} min=${0} /><${Num} className="box" value=${PR.vagas} onChange=${v => setProd({ vagas: v })} min=${0} /></div><//>
-        ${PR.programa === 'mcmv' ? html`<${Field} label="Faixa MCMV"><select className="in box" value=${PR.faixa} onChange=${e => { const f = +e.target.value; setProd({ faixa: f, teto: TETO_MCMV[f] }); }}>${[1, 2, 3, 4].map(f => html`<option key=${f} value=${f}>Faixa ${f}</option>`)}</select><//>
+        ${PR.programa === 'mcmv' ? html`<${Field} label="Faixa MCMV"><select className="in box" value=${PR.faixa} onChange=${e => { const f = +e.target.value; setProd({ faixa: f, teto: M.PM.tetoMcmv[f] }); }}>${[1, 2, 3, 4].map(f => html`<option key=${f} value=${f}>Faixa ${f}</option>`)}</select><//>
           <${Field} label="Teto por unidade (R$)"><${Num} className="box" value=${PR.teto} onChange=${v => setProd({ teto: v })} min=${1} /><//>
           <div className=${'alert ' + (acimaTeto.length ? 'cr' : 'ok')} style=${{ gridColumn: 'span 2' }}>${acimaTeto.length ? acimaTeto.length + ' tipologia(s) acima do teto: ' + acimaTeto.map(m => m.tipo).join(', ') + '.' : 'Todas as tipologias dentro do teto; RET de 1% aplicado.'} Confira tetos vigentes no regulamento do programa.</div>` : null}
         <${Field} label="Descrição" style=${{ gridColumn: '1 / -1' }}><${Txt} area className="box" value=${PR.descr} onChange=${v => setProd({ descr: v })} /><//>
@@ -375,7 +375,7 @@ function Orcamento({ ctx }) {
   const caps = [['sfh', 'Plano empresário (SFH)', 60, 10.5], ['sfh40', 'SFH conservador', 40, 11.5], ['auto', 'Autofinanciado', 0, 10.5], ['assoc', 'Crédito associativo', 0, 10.5], ['livre', 'Personalizado']];
   const fontes = (() => { const prop = Math.abs(R.expo), fin = R.sacado, perm = R.permPaga; const rec = Math.max(0, M.CTE - prop - fin - perm); return [['Recebíveis das vendas', rec, '#2BB673'], ['Financiamento à produção', fin, 'var(--ink2)'], ['Permuta financeira do terreno', perm, '#D89B26'], ['Capital próprio do incorporador', prop, '#7A6CBE']]; })();
   const cp = Math.abs(R.expo) / M.CTE;
-  const rows = PR.crono.map(c => c.obra ? { ...c, ini: 7, fim: 6 + PR.prazo } : c);
+  const PO = M.PM.preObra, rows = PR.crono.map(c => c.obra ? { ...c, ini: PO + 1, fim: PO + PR.prazo } : c);
   const T = Math.max(12, Math.ceil(Math.max(...rows.map(r => r.fim)) / 6) * 6);
   const updC = (id, p) => setProd({ crono: PR.crono.map(x => x.id === id ? { ...x, ...p } : x) });
   const c = R.cost.slice(1, R.cost.length - 1), tot = c.reduce((a, b) => a + b, 0) || 1; let acc = 0; const curva = c.map(v => (acc += v) / tot * 100);
@@ -423,14 +423,53 @@ function Orcamento({ ctx }) {
     <${Card} title="Cronograma-mestre" sub="a etapa Obra define o prazo de construção; a etapa Lançamento define o início das vendas">
       <div className="tblwrap"><table><thead><tr><th>ETAPA</th><th className="num">INÍCIO</th><th className="num">FIM</th><th style=${{ width: '45%' }}>LINHA DO TEMPO · M0 A M${T}</th><th></th></tr></thead><tbody>
         ${rows.map(r => html`<tr key=${r.id}><td><${Txt} value=${r.nome} onChange=${v => updC(r.id, { nome: v })} /></td>
-          <td style=${{ width: 70 }}>${r.obra ? html`<span className="mono" style=${{ display: 'block', textAlign: 'right', paddingRight: 6 }}>7</span>` : html`<${Num} value=${r.ini} onChange=${v => v <= r.fim && updC(r.id, { ini: v })} min=${0} />`}</td>
-          <td style=${{ width: 70 }}><${Num} value=${r.fim} onChange=${v => { if (v <= r.ini) return; if (r.obra) setProd({ prazo: Math.max(6, v - 6) }); else updC(r.id, { fim: v }); }} min=${1} /></td>
+          <td style=${{ width: 70 }}>${r.obra ? html`<span className="mono" style=${{ display: 'block', textAlign: 'right', paddingRight: 6 }}>${PO + 1}</span>` : html`<${Num} value=${r.ini} onChange=${v => v <= r.fim && updC(r.id, { ini: v })} min=${0} />`}</td>
+          <td style=${{ width: 70 }}><${Num} value=${r.fim} onChange=${v => { if (v <= r.ini) return; if (r.obra) setProd({ prazo: Math.max(6, v - PO) }); else updC(r.id, { fim: v }); }} min=${1} /></td>
           <td><div className="gantt-tr" title=${r.nome + ': M' + r.ini + ' – M' + r.fim}><i style=${{ left: (r.ini / T * 100) + '%', width: Math.max(1, (r.fim - r.ini) / T * 100) + '%', background: corEtapa(r.cor) }}></i></div></td>
           <td className="noprint">${r.obra ? null : html`<button className="rowx" onClick=${() => setProd({ crono: PR.crono.filter(x => x.id !== r.id) })}>×</button>`}</td></tr>`)}
       </tbody></table></div>
       <button className="add" onClick=${() => setProd({ crono: PR.crono.concat([{ id: uid(), nome: 'Nova etapa', ini: 0, fim: 6, cor: '#A6B1AB' }]) })}>+ etapa</button>
     <//>
   </div>`;
+}
+
+// Premissas do motor financeiro: regime de recebimento, distratos, curva de obra e tetos do MCMV.
+function PremissasMotor({ ctx }) {
+  const { st, M, set } = ctx; const P = M.PM;
+  const [aberto, setAberto] = useState(false);
+  const up = patch => set(s => ({ premissas: { ...premOf(s), ...patch } }));
+  const chaves = Math.max(0, 100 - P.recAto - P.recObra);
+  const mudou = st.premissas && JSON.stringify(premOf(st)) !== JSON.stringify(premOf({}));
+  const F = (l, k, o = {}) => html`<${Field} label=${l}><${Num} className="box" value=${P[k]} onChange=${v => up({ [k]: v })} min=${o.min ?? 0} max=${o.max} /><//>`;
+  return html`<${Card} title="Premissas do motor financeiro" sub=${'regime de recebimento, distratos, curva de obra e área equivalente' + (mudou ? ' · personalizadas neste estudo' : ' · padrão do PREDIC')}
+    right=${html`<div className="noprint" style=${{ display: 'flex', gap: 6 }}>${mudou ? html`<button className="btn sm" onClick=${() => set({ premissas: null })}>Restaurar padrão</button>` : null}<button className="btn sm" onClick=${() => setAberto(a => !a)}>${aberto ? 'Ocultar' : 'Ver e editar'}</button></div>`}>
+    ${aberto || ctx.printAll ? html`<div className="grid" style=${{ gap: 16 }}>
+      <div><h3 className="minih">Vendas na planta (até a entrega)</h3><div className="grid g4">
+        ${F('Ato / sinal (% do preço)', 'recAto', { max: 100 })}${F('Parcelas durante a obra (%)', 'recObra', { max: 100 })}
+        <${Field} label="Chaves / repasse (%)"><div className="in box mono" style=${{ textAlign: 'right', opacity: .75 }}>${num(chaves, 1)}</div><//>
+        ${F('Meses antes do início da obra', 'preObra', { max: 36 })}
+      </div>${P.recAto + P.recObra > 100 ? html`<div className="alert cr" style=${{ marginTop: 8 }}>Ato + obra passam de 100%; o repasse foi zerado.</div>` : null}</div>
+      <div><h3 className="minih">Vendas após a entrega</h3><div className="grid g4">
+        ${F('À vista / entrada (%)', 'posAto', { max: 100 })}${F('Repasse do saldo (meses)', 'posRepasse', { max: 24 })}
+      </div></div>
+      <div><h3 className="minih">Distratos (Lei 13.786/18)</h3><div className="grid g4">
+        ${F('Retenção sobre o pago (%)', 'distRetencao', { max: 100 })}${F('Custos do distrato (% do valor)', 'distCusto', { max: 30 })}
+        ${F('Revenda das unidades (%)', 'distRevenda', { max: 100 })}${F('Prazo de revenda (meses)', 'distRevendaMeses', { min: 1, max: 36 })}
+      </div></div>
+      <div><h3 className="minih">Obra e áreas</h3><div className="grid g4">
+        <${Field} label="Curva de desembolso da obra" style=${{ gridColumn: 'span 2' }}><select className="in box" value=${P.curva} onChange=${e => up({ curva: e.target.value })}>${Object.entries(CURVAS).map(([k, c]) => html`<option key=${k} value=${k}>${c[0]}</option>`)}</select><//>
+        ${F('Área equivalente (% da construída)', 'aeqFator', { min: 30, max: 120 })}
+      </div></div>
+      <div><h3 className="minih">Tetos do Minha Casa Minha Vida (R$ por unidade)</h3><div className="grid g4">
+        ${[1, 2, 3, 4].map(f => html`<${Field} key=${f} label=${'Faixa ' + f}><${Num} className="box" value=${P.tetoMcmv[f]} onChange=${v => up({ tetoMcmv: { ...P.tetoMcmv, [f]: v } })} min=${1} /><//>`)}
+      </div><p className="note" style=${{ marginTop: 6 }}>Valores de referência ${P.tetoRef}. Os tetos mudam por portaria do Ministério das Cidades e variam por município nas faixas 1 e 2: confira a regra vigente antes de levar o estudo ao comitê.</p></div>
+    </div>` : html`<div className="chips">${[
+      'Planta: ' + num(P.recAto, 0) + '% ato · ' + num(P.recObra, 0) + '% obra · ' + num(chaves, 0) + '% chaves',
+      'Pós-entrega: ' + num(P.posAto, 0) + '% + repasse em ' + P.posRepasse + ' m',
+      'Distrato: retém ' + num(P.distRetencao, 0) + '% · revende ' + num(P.distRevenda, 0) + '%',
+      (CURVAS[P.curva] || CURVAS.sino)[0], 'Área equivalente ' + num(P.aeqFator, 0) + '%'
+    ].map((t, i) => html`<span key=${i} className="chip">${t}</span>`)}</div>`}
+  <//>`;
 }
 
 function Financeiro({ ctx }) {
@@ -495,6 +534,7 @@ function Financeiro({ ctx }) {
         <${Legend} items=${KS.map((k, j) => ({ l: KSL[k] + ' · TIR ' + pct(RR[j].tir), color: KSC[k] }))} />
       <//>
     </div>
+    <${PremissasMotor} ctx=${ctx} />
     <${Card} title="Fluxo acumulado · receitas × CTE" sub="antes do financiamento à produção" right=${html`<${Seg} opts=${KS.map(k => [k, KSL[k]])} value=${cf} onChange=${v => set({ cenFluxo: v })} />`}>
       <${LineChart} h=${250} series=${[{ name: 'Receitas acumuladas', color: '#1E8F52', values: rc, width: 2.2 }, { name: 'CTE acumulado', color: 'var(--ink)', values: cc, width: 2.2 }, { name: 'Saldo acumulado', color: '#D89B26', values: sc, area: true, width: 1.8, dash: '6 4' }]} xLab=${i => 'M' + (i + 1)} />
       <div style=${{ marginTop: 8 }}><${Legend} items=${[{ l: 'Receitas · ' + milhoes(ar), color: '#1E8F52' }, { l: 'CTE · ' + milhoes(ac2), color: 'var(--ink)' }, { l: 'Saldo · mín. ' + milhoes(Math.min(...sc)) + ' · final ' + milhoes(ar - ac2), color: '#D89B26' }]} /></div>

@@ -42,8 +42,35 @@ const ICONS = {
   alert: 'M12 9v4M12 17h.01M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z',
   brain: 'M9.5 2A2.5 2.5 0 0 0 7 4.5v.3A3 3 0 0 0 4.5 8a3 3 0 0 0 .3 4.5A3 3 0 0 0 7 17.5 2.5 2.5 0 0 0 12 19V4.5A2.5 2.5 0 0 0 9.5 2zM14.5 2A2.5 2.5 0 0 1 17 4.5v.3A3 3 0 0 1 19.5 8a3 3 0 0 1-.3 4.5A3 3 0 0 1 17 17.5a2.5 2.5 0 0 1-5 1.5',
   building: 'M3 21h18M5 21V5l7-3v19M19 21V9l-7-3M9 9h.01M9 13h.01M9 17h.01M15 13h.01M15 17h.01',
-  spark: 'M13 2L4 14h7l-1 8 9-12h-7z'
+  spark: 'M13 2L4 14h7l-1 8 9-12h-7z',
+  user: 'M20 21a8 8 0 0 0-16 0M12 13a5 5 0 1 0 0-10 5 5 0 0 0 0 10z',
+  users: 'M17 21a6 6 0 0 0-12 0M11 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM22 21a5 5 0 0 0-4-4.9M16 4.1a4 4 0 0 1 0 7.8',
+  logout: 'M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 17l-5-5 5-5M5 12h11',
+  lock: 'M6 11h12v10H6zM8.5 11V7.5a3.5 3.5 0 0 1 7 0V11',
+  shield: 'M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6zM9 12l2 2 4-4',
+  cloud: 'M7 18a5 5 0 0 1-.9-9.9A6 6 0 0 1 17.7 9 4.5 4.5 0 0 1 17.5 18z',
+  cloudoff: 'M3 3l18 18M8.5 8.4A5 5 0 0 0 7 18h10.5M20.6 15.5A4.5 4.5 0 0 0 17.7 9a6 6 0 0 0-7.3-4.9',
+  chart: 'M4 20V10M10 20V4M16 20v-7M22 20H2',
+  key: 'M14.5 9.5a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0zM13.2 12.7L21 20.5M17.5 17l2-2M15.5 15l1.5-1.5',
+  mail: 'M3 6h18v12H3zM3 7l9 6 9-6',
+  eye: 'M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z',
+  briefcase: 'M3 8h18v12H3zM8 8V5h8v3M3 13h18'
 };
+// Marca do PREDIC: monograma "P" em ouro sobre placa noturna; a curva do P abriga barras ascendentes (viabilidade que sobe).
+const Marca = ({ s = 32, className = '', style }) => html`<svg className=${'marca ' + className} viewBox="0 0 64 64" width=${s} height=${s} style=${style} aria-hidden="true">
+  <defs>
+    <linearGradient id="pm-bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#1C2847" /><stop offset="1" stopColor="#060A14" /></linearGradient>
+    <linearGradient id="pm-au" x1="0.1" y1="0" x2="0.9" y2="1"><stop offset="0" stopColor="#F6E4AE" /><stop offset=".45" stopColor="#D9B46C" /><stop offset="1" stopColor="#9A7134" /></linearGradient>
+    <linearGradient id="pm-em" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stopColor="#0E9F6E" /><stop offset="1" stopColor="#5EEAB0" /></linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="16" fill="url(#pm-bg)" />
+  <rect x="1" y="1" width="62" height="62" rx="15" fill="none" stroke="url(#pm-au)" strokeOpacity=".5" strokeWidth="1.2" />
+  <path d="M21 49V18.5a3 3 0 0 1 3-3h10.5a11.75 11.75 0 0 1 0 23.5H27.5" fill="none" stroke="url(#pm-au)" strokeWidth="5.6" strokeLinecap="round" strokeLinejoin="round" />
+  <rect x="28" y="28.5" width="3.4" height="5.5" rx="1" fill="url(#pm-em)" />
+  <rect x="33.2" y="24.5" width="3.4" height="9.5" rx="1" fill="url(#pm-em)" />
+  <path d="M47.5 9.5l1.1 2.5 2.5 1.1-2.5 1.1-1.1 2.5-1.1-2.5-2.5-1.1 2.5-1.1z" fill="#F6E4AE" />
+</svg>`;
+const Logo = ({ s = 30, sub, claro }) => html`<div className=${'logo' + (claro ? ' claro' : '')}><${Marca} s=${s} /><div className="lw"><b>PREDIC</b>${sub ? html`<small>${sub}</small>` : null}</div></div>`;
 const Icon = ({ n, s = 16, style, className = '' }) => html`<svg className=${'ic ' + className} viewBox="0 0 24 24" style=${{ width: s, height: s, ...style }} aria-hidden="true"><path d=${ICONS[n] || ''} /></svg>`;
 
 /* ============================ campos ============================ */

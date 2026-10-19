@@ -37,14 +37,21 @@ A chave da API fica só no servidor; o navegador nunca a vê. O modelo padrão �
 
 ## Publicar para clientes
 
+### Render (recomendado)
+
+1. No [Render](https://render.com), clique em **New > Blueprint** e escolha este repositório. O `render.yaml` cria o serviço com disco persistente para o banco (plano *starter*; disco não existe no plano gratuito).
+2. Informe `ANTHROPIC_API_KEY` quando o Render pedir.
+3. Depois do deploy, abra **Logs** e copie o *código de configuração*. Acesse o endereço `https://predic-xxxx.onrender.com`, crie a empresa e o administrador usando esse código.
+4. O administrador convida os demais usuários em *Configurações > Usuários*.
+
+### Docker
+
 ```bash
 docker build -t predic .
-docker run -p 8787:8787 -e ANTHROPIC_API_KEY=... -e PREDIC_ACCESS_KEY=uma-senha-forte predic
+docker run -p 8787:8787 -v predic-dados:/app/dados -e ANTHROPIC_API_KEY=... -e TRUST_PROXY=1 predic
 ```
 
-Coloque o servidor atrás de HTTPS (Caddy, Nginx ou o balanceador do provedor). Com `PREDIC_ACCESS_KEY` definida, cada usuário informa essa chave em *Configurações* para usar a IA; `PREDIC_RATE_PER_HOUR` limita o uso por IP.
-
-**Importante:** os estudos ficam salvos no navegador de cada usuário (localStorage/IndexedDB). Para um SaaS com várias empresas, o próximo passo é adicionar login e um banco de dados no servidor.
+Coloque o servidor atrás de HTTPS (Caddy, Nginx ou o balanceador do provedor) e defina `TRUST_PROXY=1`. Os estudos, usuários e o uso da IA ficam no banco SQLite em `PREDIC_DATA_DIR`; faça backup dessa pasta. `PREDIC_COTA_MENSAL_USD` limita o gasto mensal com IA por empresa e `PREDIC_RATE_PER_HOUR` limita chamadas por IP.
 
 ## Estrutura
 

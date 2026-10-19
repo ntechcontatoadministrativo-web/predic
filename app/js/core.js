@@ -18,7 +18,16 @@ const horaBR = d => new Date(d).toLocaleString('pt-BR', { day: '2-digit', month:
 /* ============================ constantes ============================ */
 const LAZER_OPCOES = ['Piscina adulto e infantil', 'Academia equipada', 'Salão de festas', 'Espaço gourmet', 'Coworking', 'Brinquedoteca', 'Pet place', 'Quadra poliesportiva', 'Bicicletário', 'Lockers para delivery', 'Carregador veicular', 'Gerador full', 'Sauna', 'Rooftop', 'Lavanderia compartilhada', 'Mercado autônomo'];
 const ADER_CRIT = ['Tipologia × perfil familiar', 'Ticket × renda do público', 'Lazer × concorrência', 'Vagas × exigência do público', 'Localização × público-alvo'];
+// Tetos do MCMV por faixa (referência 2025). Mudam por portaria: o estudo guarda os seus em premissas.tetoMcmv.
 const TETO_MCMV = { 1: 264000, 2: 264000, 3: 350000, 4: 500000 };
+// Premissas do motor: os padrões reproduzem o modelo original; cada estudo pode ajustá-las em Viabilidade.
+const PREM0 = {
+  recAto: 8, recObra: 22, posAto: 30, posRepasse: 3,
+  distRetencao: 50, distRevenda: 85, distRevendaMeses: 6, distCusto: 5.5,
+  curva: 'sino', aeqFator: 87, preObra: 6, tetoMcmv: { ...TETO_MCMV }, tetoRef: '2025'
+};
+const premOf = st => ({ ...PREM0, ...(st && st.premissas), tetoMcmv: { ...TETO_MCMV, ...(st && st.premissas && st.premissas.tetoMcmv) } });
+const CURVAS = { sino: ['Curva S (concentrada no meio da obra)', 0.55, 0.30], antecipada: ['Antecipada (estrutura pesada no início)', 0.38, 0.32], tardia: ['Tardia (acabamentos pesados)', 0.70, 0.30], linear: ['Linear (desembolso uniforme)', 0, 0] };
 const NIVTXT = { ok: 'regular', at: 'atenção', cr: 'crítico', na: 'não iniciado' };
 const NIVM = { ok: 'baixo', at: 'médio', cr: 'alto', na: '—' };
 const NIV = v => { const x = norm(v); return /crit|alto/.test(x) ? 'cr' : /aten|medio|moder/.test(x) ? 'at' : /regular|ok|adequ|baixo|livre|emitid|conclu/.test(x) ? 'ok' : 'na'; };
@@ -39,15 +48,17 @@ const tk = k => ({ ok: 'g', at: 'y', cr: 'r', na: 'n' })[k];
 /* ============================ motor financeiro ============================ */
 // Fluxo mensal: receitas por regime de pagamento, custos por curva de obra, financiamento à produção e indicadores.
 function engine(p) {
-  const ENTREGA = 6 + Math.max(6, Math.round(p.prazo ?? 30)), N = ENTREGA + 12;
+  const PM = { ...PREM0, ...p.prem }, PRE = Math.max(0, Math.round(PM.preObra));
+  const ENTREGA = PRE + Math.max(6, Math.round(p.prazo ?? 30)), N = ENTREGA + 12;
+  const rAto = PM.recAto / 100, rObra = PM.recObra / 100, rChaves = Math.max(0, 1 - rAto - rObra), pAto = PM.posAto / 100, pRep = Math.max(0, Math.round(PM.posRepasse));
   const incc = (p.incc ?? 0) / 100, dist = (p.distrato ?? 0) / 100 * (p.assoc ? 0.3 : 1), jfin = (p.juros ?? 10.5) / 100;
   const UN = Math.max(1, p.un), AEQ = p.aeq;
   const vgv = p.ap * p.preco, ticket = vgv / UN;
   const CP = p.custos || {}, cv = (k, d) => CP[k] ?? d;
   const obra = AEQ * p.custo * (1 + cv('frete', 0) / 100);
-  const dur = ENTREGA - 6, w = []; let ws = 0;
-  for (let k = 0; k < dur; k++) { const x = (k + 0.5) / dur; const y = Math.exp(-Math.pow((x - 0.55) / 0.30, 2)); w.push(y); ws += y; }
-  const WO = []; w.forEach((y, k) => { WO[7 + k] = y / ws; });
+  const dur = ENTREGA - PRE, w = []; let ws = 0; const cv0 = CURVAS[PM.curva] || CURVAS.sino;
+  for (let k = 0; k < dur; k++) { const x = (k + 0.5) / dur; const y = cv0[2] ? Math.exp(-Math.pow((x - cv0[1]) / cv0[2], 2)) : 1; w.push(y); ws += y; }
+  const O1 = PRE + 1, WO = []; w.forEach((y, k) => { WO[O1 + k] = y / ws; });
   const entr = (p.entrada ?? 10) / 100, tm = p.terrenoMult ?? 1;
   const cash = (p.terrenoCash ?? 0) * tm, fin = (p.permFin ?? 0) / 100 * tm;
   const terreno = cash + fin * vgv;
@@ -63,25 +74,27 @@ function engine(p) {
       if (t < ENTREGA) {
         preVal += v; rec[t] += v * entr * 0.5;
         const n2 = ENTREGA - t + 1; for (let k = t; k <= ENTREGA; k++) rec[k] += v * entr * 0.5 / n2;
-        const fv = v * (1 - entr); let done = 0; for (let m = 7; m <= t; m++) done += WO[m] || 0;
+        const fv = v * (1 - entr); let done = 0; for (let m = O1; m <= t; m++) done += WO[m] || 0;
         rec[t] += fv * done; for (let m = t + 1; m <= ENTREGA; m++) rec[m] += fv * (WO[m] || 0);
       } else rec[t] += v;
       continue;
     }
     if (t < ENTREGA) {
       preVal += v; const n = ENTREGA - t + 1;
-      rec[t] += v * 0.08; for (let k = t; k <= ENTREGA; k++) rec[k] += v * 0.22 / n;
-      rec[Math.min(N + 1, ENTREGA + 1)] += v * 0.70;
-    } else { rec[t] += v * 0.30; rec[Math.min(N + 1, t + 3)] += v * 0.70; }
+      rec[t] += v * rAto; for (let k = t; k <= ENTREGA; k++) rec[k] += v * rObra / n;
+      rec[Math.min(N + 1, ENTREGA + 1)] += v * rChaves;
+    } else { rec[t] += v * pAto; rec[Math.min(N + 1, t + pRep)] += v * (1 - pAto); }
   }
   if (dist > 0) {
     const dv = preVal * dist;
-    rec[ENTREGA + 1] -= dv * 0.70; cost[ENTREGA + 1] += dv * 0.30 * 0.5 + dv * 0.055;
-    for (let k = 0; k < 6; k++) { const t = ENTREGA + 2 + k; rec[Math.min(N + 1, t)] += dv * 0.85 / 6 * 0.30; rec[Math.min(N + 1, t + 3)] += dv * 0.85 / 6 * 0.70; }
+    // o repasse das chaves não entra; devolve-se a parte não retida do que foi pago; as unidades voltam à venda
+    rec[ENTREGA + 1] -= dv * rChaves; cost[ENTREGA + 1] += dv * (rAto + rObra) * (1 - PM.distRetencao / 100) + dv * PM.distCusto / 100;
+    const nr = Math.max(1, Math.round(PM.distRevendaMeses)), rv = dv * PM.distRevenda / 100 / nr;
+    for (let k = 0; k < nr; k++) { const t = ENTREGA + 2 + k; rec[Math.min(N + 1, t)] += rv * pAto; rec[Math.min(N + 1, t + pRep)] += rv * (1 - pAto); }
   }
-  cost[1] += cash * 0.30; cost[6] += cash * 0.70; cost[4] += outorga;
+  cost[1] += cash * 0.30; cost[Math.max(1, PRE)] += cash * 0.70; cost[Math.min(4, Math.max(1, PRE))] += outorga;
   for (let k = 1; k <= 8; k++) cost[k] += projetos / 8;
-  for (let k = 0; k < dur; k++) cost[7 + k] += obra * w[k] / ws * Math.pow(1 + incc, (7 + k) / 12);
+  for (let k = 0; k < dur; k++) cost[O1 + k] += obra * w[k] / ws * Math.pow(1 + incc, (O1 + k) / 12);
   for (let t = 1; t <= ENTREGA + 6; t++) cost[t] += admin / (ENTREGA + 6);
   let corretagem = 0, tributos = 0, permPaga = 0;
   for (let t = 1; t <= N + 1; t++) { const cc = vendas[t] * ticket * corrPct; corretagem += cc; tributos += rec[t] * retPct; permPaga += rec[t] * fin; cost[t] += cc + rec[t] * retPct + rec[t] * fin; }
@@ -121,14 +134,14 @@ function engine(p) {
     margem: lucro / vgv, roi: lucro / totalCost, expo, expoMes, payback: payback || N + 1, vpl, tir, cum, flow, rec, cost, vendas, entrega: ENTREGA,
     mesesVenda: mv > 0 ? mv - (p.lanc ?? 1) : N };
 }
-function derive(P) {
+function derive(P, aeqFator = 87) {
   let unT = 0, perm = 0, apT = 0, ap = 0, vgv = 0, vgvPerm = 0, areaPerm = 0;
   P.mix.forEach(m => { unT += m.un; perm += m.perm; apT += m.un * m.area; ap += (m.un - m.perm) * m.area; vgv += (m.un - m.perm) * m.area * m.preco; vgvPerm += m.perm * m.area * m.preco; areaPerm += m.perm * m.area; });
   const ac = apT + (P.comum || 0) + (P.garagem || 0);
-  return { unT, perm, un: Math.max(1, unT - perm), apT, ap: Math.max(1, ap), vgv, preco: vgv / Math.max(1, ap) || 0, ac, aeq: Math.round(ac * 0.87), vgvPerm, areaPerm };
+  return { unT, perm, un: Math.max(1, unT - perm), apT, ap: Math.max(1, ap), vgv, preco: vgv / Math.max(1, ap) || 0, ac, aeq: Math.round(ac * aeqFator / 100), vgvPerm, areaPerm };
 }
 const lancOf = P => { const r = (P.crono || []).find(c => c.vendas || /lan[çc]amento/i.test(c.nome)); return r ? Math.max(1, Math.round(r.ini)) : 1; };
-const pInOf = (P, tma) => { const D = derive(P); return { preco: D.preco, custo: P.custo, vso: P.vso, tma, ap: D.ap, aeq: D.aeq, un: D.un, prazo: P.prazo, terrenoCash: P.terrenoCash ?? 0, permFin: P.permFin ?? 0, vgvPerm: D.vgvPerm, finPct: P.finPct ?? 60, finJuros: P.finJuros ?? 10.5, lanc: lancOf(P), custos: P.custos, assoc: !!P.assoc, entrada: P.entrada ?? 10 }; };
+const pInOf = (P, tma, prem = PREM0) => { const D = derive(P, prem.aeqFator); return { prem, preco: D.preco, custo: P.custo, vso: P.vso, tma, ap: D.ap, aeq: D.aeq, un: D.un, prazo: P.prazo, terrenoCash: P.terrenoCash ?? 0, permFin: P.permFin ?? 0, vgvPerm: D.vgvPerm, finPct: P.finPct ?? 60, finJuros: P.finJuros ?? 10.5, lanc: lancOf(P), custos: P.custos, assoc: !!P.assoc, entrada: P.entrada ?? 10 }; };
 const applyScen = (b, k, SC) => { const c = SC[k] || SC.base; return { ...b, preco: b.preco * (1 + c.preco / 100), custo: b.custo * (1 + c.custo / 100), vso: b.vso * (1 + c.vso / 100), tma: b.tma + c.tma, prazo: b.prazo + c.prazo, incc: c.incc, distrato: c.distrato, juros: (b.finJuros ?? 10.5) + c.tma }; };
 const zero = (f, lo, hi) => { let a = lo, b = hi; const fa = f(a); if (Math.sign(fa) === Math.sign(f(b))) return null; for (let i = 0; i < 22; i++) { const m = (a + b) / 2; if (Math.sign(f(m)) === Math.sign(fa)) a = m; else b = m; } return (a + b) / 2; };
 // parcela inicial no SAC (padrão da Caixa) para financiar o imóvel
@@ -227,9 +240,9 @@ function estudoVazio() {
 /* ============================ modelo calculado ============================ */
 function compute(st) {
   const SC = st.cenarios, E = st.estudo, C = st.comite, L = st.listas, RL = st.real || {};
-  const PRODS = st.produtos, sel = Math.min(st.prodSel, PRODS.length - 1), PR = PRODS[sel], D = derive(PR);
+  const PM = premOf(st), PRODS = st.produtos, sel = Math.min(st.prodSel, PRODS.length - 1), PR = PRODS[sel], D = derive(PR, PM.aeqFator);
   const W = (() => { const t = st.pesos.reduce((a, b) => a + b, 0) || 1; return st.pesos.map(x => x / t); })();
-  const pIn = pInOf(PR, st.tma), pB = applyScen(pIn, 'base', SC);
+  const pIn = pInOf(PR, st.tma, PM), pB = applyScen(pIn, 'base', SC);
   const RR = KS.map(k => engine(applyScen(pIn, k, SC))), R = RR[1];
   const esp = f => { const v = RR.map(f); return v.some(x => !ok(x)) ? null : v.reduce((a, x, i) => a + x * W[i], 0); };
   const tirOk = t => ok(t) && t * 100 >= C.tirMin;
@@ -312,7 +325,7 @@ function compute(st) {
 
   // comparativo entre produtos
   const comp = PRODS.map((P, i) => {
-    const pi = pInOf(P, st.tma), rr = KS.map(k => engine(applyScen(pi, k, SC))), rb = rr[1], pb = applyScen(pi, 'base', SC);
+    const pi = pInOf(P, st.tma, PM), rr = KS.map(k => engine(applyScen(pi, k, SC))), rb = rr[1], pb = applyScen(pi, 'base', SC);
     const kp = zero(k => engine({ ...pb, preco: pb.preco * k }).vpl, 0.4, 1), kc = zero(k => engine({ ...pb, custo: pb.custo * k }).vpl, 1, 2.5);
     const qp = rb.vpl <= 0 ? 0 : kp == null ? 0.6 : 1 - kp, qc = rb.vpl <= 0 ? 0 : kc == null ? 1.5 : kc - 1;
     const e2 = Math.abs(rb.expo) / rb.vgv, c2 = Math.abs(rb.expo) / rb.cte;
@@ -344,5 +357,5 @@ function compute(st) {
   ].filter(Boolean);
 
   const verdictK = verdict[0] === 'Aprovar' ? 'ok' : verdict[0] === 'Reprovar' ? 'cr' : 'at';
-  return { PR, D, sel, R, RR, pB, pIn, W, esp, crit, verdict, verdictK, MK, aff, premissas, usos, CTE, riscos, riscoNivel, matrizes, tornado, macroFx, be, comp, melhor, cnt, autoParecer, prazoLic, POT, computavel, usoCA, projOcup, condAuto, nossasVendasMes, qP, qC };
+  return { PM, PR, D, sel, R, RR, pB, pIn, W, esp, crit, verdict, verdictK, MK, aff, premissas, usos, CTE, riscos, riscoNivel, matrizes, tornado, macroFx, be, comp, melhor, cnt, autoParecer, prazoLic, POT, computavel, usoCA, projOcup, condAuto, nossasVendasMes, qP, qC };
 }

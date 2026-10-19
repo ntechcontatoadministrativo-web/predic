@@ -4,10 +4,18 @@
 const UFS = { AC: 12, AL: 27, AP: 16, AM: 13, BA: 29, CE: 23, DF: 53, ES: 32, GO: 52, MA: 21, MT: 51, MS: 50, MG: 31, PA: 15, PB: 25, PR: 41, PE: 26, PI: 22, RJ: 33, RN: 24, RS: 43, RO: 11, RR: 14, SC: 42, SP: 35, SE: 28, TO: 17 };
 const UF_NOME = { 'acre': 'AC', 'alagoas': 'AL', 'amapa': 'AP', 'amazonas': 'AM', 'bahia': 'BA', 'ceara': 'CE', 'distrito federal': 'DF', 'espirito santo': 'ES', 'goias': 'GO', 'maranhao': 'MA', 'mato grosso': 'MT', 'mato grosso do sul': 'MS', 'minas gerais': 'MG', 'para': 'PA', 'paraiba': 'PB', 'parana': 'PR', 'pernambuco': 'PE', 'piaui': 'PI', 'rio de janeiro': 'RJ', 'rio grande do norte': 'RN', 'rio grande do sul': 'RS', 'rondonia': 'RO', 'roraima': 'RR', 'santa catarina': 'SC', 'sao paulo': 'SP', 'sergipe': 'SE', 'tocantins': 'TO' };
 const sleep = ms => new Promise(r => setTimeout(r, ms));
-async function getJSON(url, opt = {}, ms = 25000) {
+async function getJSONDireto(url, opt = {}, ms = 25000) {
   const ac = new AbortController(); const t = setTimeout(() => ac.abort(), ms);
   try { const r = await fetch(url, { ...opt, signal: ac.signal }); if (!r.ok) throw new Error('HTTP ' + r.status); return await r.json(); }
   finally { clearTimeout(t); }
+}
+// Com conta, BCB, IBGE, altimetria e Nominatim passam pelo servidor: cache compartilhado pela equipe e última resposta boa quando a fonte cai.
+const VIA_SERVIDOR = /^(api\.bcb\.gov\.br|servicodados\.ibge\.gov\.br|apisidra\.ibge\.gov\.br|api\.open-meteo\.com|nominatim\.openstreetmap\.org)$/;
+async function getJSON(url, opt = {}, ms = 25000) {
+  if (typeof MODO !== 'undefined' && MODO.perfil && !opt.method && VIA_SERVIDOR.test(new URL(url).hostname)) {
+    try { return await getJSONDireto('/api/dados?u=' + encodeURIComponent(url), {}, ms + 5000); } catch (e) { /* servidor sem resposta: tenta a fonte direto */ }
+  }
+  return getJSONDireto(url, opt, ms);
 }
 const API = {
   async bcb(serie, n) { const d = await getJSON(`https://api.bcb.gov.br/dados/serie/bcdata.sgs.${serie}/dados/ultimos/${n}?formato=json`); return d.map(x => ({ data: x.data, v: parseFloat(x.valor) })); },
@@ -173,7 +181,7 @@ function exportarPlanilha(st) {
   add('Produtos', 'Produtos do estudo · uma linha por produto', PLAN_PROD, st.produtos.map(p => [p.nome, p.descr, p.prazo, p.custo, p.vso, p.comum, p.garagem, p.vagas, p.permFin || 0, p.terrenoCash || 0, p.finPct ?? 60, p.finJuros ?? 10.5, p.programa === 'mcmv' ? 'MCMV' : 'mercado', p.faixa || '', p.teto || '', p.assoc ? 'sim' : 'não', p.entrada ?? 10, p.pavimentos || '', p.unAndar || '', p.padrao || '']));
   add('Mix', 'Mix de unidades', ['Produto', 'Tipologia', 'Unidades', 'Área privativa (m²)', 'Preço (R$/m²)', 'Unidades em permuta'], st.produtos.flatMap(p => p.mix.map(m => [p.nome, m.tipo, m.un, m.area, m.preco, m.perm])));
   add('Custos', 'Premissas de custo por produto', ['Produto'].concat(CUSTO_CAMPOS.map(c => c[0] + ' (' + c[1] + ')')), st.produtos.map(p => [p.nome].concat(CUSTO_CAMPOS.map(c => p.custos?.[c[2]] ?? c[3]))));
-  add('Cronograma', 'Cronograma-mestre', ['Produto', 'Etapa', 'Início (mês)', 'Fim (mês)'], st.produtos.flatMap(p => p.crono.map(c => [p.nome, c.nome, c.obra ? 7 : c.ini, c.obra ? 6 + p.prazo : c.fim])));
+  add('Cronograma', 'Cronograma-mestre', ['Produto', 'Etapa', 'Início (mês)', 'Fim (mês)'], st.produtos.flatMap(p => p.crono.map(c => [p.nome, c.nome, c.obra ? premOf(st).preObra + 1 : c.ini, c.obra ? premOf(st).preObra + p.prazo : c.fim])));
   add('Cenários', 'Cenários · variação sobre o base', ['Variável', 'Pessimista', 'Base', 'Otimista'], CEN_CAMPOS.map(([k, l, u]) => [l + ' (' + u + ')', st.cenarios.pessimista[k], st.cenarios.base[k], st.cenarios.otimista[k]]).concat([['Peso na ponderação (%)'].concat(st.pesos)]));
   add('Lazer', 'Lazer e diferenciais', ['Produto', 'Item'], st.produtos.flatMap(p => p.lazer.map(x => [p.nome, x])));
   add('Aderência', 'Aderência produto × demanda', ['Produto', 'Critério', 'Nota (0 a 100)'], st.produtos.flatMap(p => ADER_CRIT.map((c, i) => [p.nome, c, p.ader[i] ?? 50])));
@@ -204,7 +212,7 @@ function importarPlanilha(buf, st) {
     if (!mix.length) throw new Error('O produto "' + nome + '" não tem linhas válidas na aba Mix.');
     let prazo = N(r[2]) || 30;
     let crono = crR.filter(c => S(c[0]) === nome).map((c, j) => ({ id: uid(), nome: S(c[1]), ini: N(c[2]), fim: N(c[3]), cor: cores[j % cores.length] }));
-    crono = crono.map(c => /obra/i.test(c.nome) && !/p[óo]s/i.test(c.nome) ? (prazo = Math.max(6, c.fim - 6), { ...c, ini: 7, obra: true, cor: '#22212D' }) : /lan[çc]amento/i.test(c.nome) ? { ...c, vendas: true, cor: '#2BB673' } : c);
+    crono = crono.map(c => /obra/i.test(c.nome) && !/p[óo]s/i.test(c.nome) ? (prazo = Math.max(6, c.fim - premOf(st).preObra), { ...c, ini: premOf(st).preObra + 1, obra: true, cor: '#22212D' }) : /lan[çc]amento/i.test(c.nome) ? { ...c, vendas: true, cor: '#2BB673' } : c);
     if (!crono.length) crono = CRONO0();
     const P = novoProduto(nome, false);
     Object.assign(P, { descr: S(r[1]), prazo, custo: N(r[3]) || 3000, vso: N(r[4]) || 3, comum: N(r[5]), garagem: N(r[6]), vagas: N(r[7]), permFin: N(r[8]), terrenoCash: N(r[9]),

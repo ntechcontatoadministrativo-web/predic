@@ -2,7 +2,10 @@
 /* PREDIC · aplicação: biblioteca de estudos, configurações, histórico (desfazer), layout e relatório */
 
 /* ============================ armazenamento dos estudos ============================ */
-const CFG_KEY = 'predic3-config', IDX_KEY = 'predic3-index', ST_KEY = id => 'predic3-st-' + id;
+// Sem conta (arquivo local), os estudos ficam em predic3-*; com conta, a cópia de trabalho de cada empresa fica em predic3s-<empresa>-*.
+const CFG_KEY = 'predic3-config';
+const IDX_KEY = () => SYNC.ns ? SYNC.k('index') : 'predic3-index';
+const ST_KEY = id => (SYNC.ns ? SYNC.k('st-') : 'predic3-st-') + id;
 const lsGet = (k, d) => { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } };
 const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } };
 function normalizar(d) {
@@ -16,21 +19,23 @@ const resumoEstudo = st => {
     vgv: q ? q.R.vgv : null, tir: q && ok(q.R.tir) ? q.R.tir : null, margem: q ? q.R.margem : null, veredito: q ? q.veredito : '', k: q ? q.k : 'na' };
 };
 const STORE = {
-  idx: () => lsGet(IDX_KEY, []),
+  idx: () => lsGet(IDX_KEY(), []),
   load(id) { const d = lsGet(ST_KEY(id), null); return d ? normalizar({ ...d, id }) : null; },
   save(st) {
     const okW = lsSet(ST_KEY(st.id), st);
-    const l = STORE.idx().filter(x => x.id !== st.id); l.unshift(resumoEstudo(st)); lsSet(IDX_KEY, l);
+    const ant = STORE.idx().find(x => x.id === st.id);
+    const l = STORE.idx().filter(x => x.id !== st.id); l.unshift({ ...resumoEstudo(st), autor: MODO.perfil ? MODO.perfil.usuario.nome : ant?.autor }); lsSet(IDX_KEY(), l);
+    if (SYNC.ns) SYNC.agendar(st.id);
     return okW;
   },
-  del(id) { try { localStorage.removeItem(ST_KEY(id)); } catch (e) { } lsSet(IDX_KEY, STORE.idx().filter(x => x.id !== id)); IDB.del(id, 'chat'); },
+  del(id) { try { localStorage.removeItem(ST_KEY(id)); } catch (e) { } lsSet(IDX_KEY(), STORE.idx().filter(x => x.id !== id)); IDB.del(id, 'chat'); if (SYNC.ns) SYNC.excluir(id); },
   novo(base) { const now = Date.now(); const st = normalizar({ ...base, id: 'e' + now.toString(36) + uid(), criado: now, atualizado: now }); STORE.save(st); return st; }
 };
 // Migra o estudo salvo pela versão 2 (um único estudo no navegador).
 function migrarV2() {
-  if (lsGet(IDX_KEY, null)) return;
+  if (lsGet('predic3-index', null)) return;
   const v2 = lsGet('predic-v2-estudo', null);
-  lsSet(IDX_KEY, []);
+  lsSet('predic3-index', []);
   if (v2 && Array.isArray(v2.produtos) && v2.produtos.length) STORE.novo(v2);
 }
 const baixar = (nome, conteudo, tipo) => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([conteudo], { type: tipo })); a.download = nome; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500); };
@@ -48,76 +53,90 @@ function lerBackup(txt) {
 }
 
 /* ============================ configurações ============================ */
-const CFG0 = { empresa: '', analista: '', cargo: '', logo: '', tema: 'sistema', chaveAcesso: '' };
+const CFG0 = { empresa: '', analista: '', cargo: '', logo: '', tema: 'sistema' };
 function aplicarTema(t) { const r = document.documentElement; if (t === 'claro') r.dataset.theme = 'light'; else if (t === 'escuro') r.dataset.theme = 'dark'; else delete r.dataset.theme; }
-function ConfigModal({ cfg, setCfg, ai, onClose, recarregarIA }) {
-  const [c, setC] = useState(cfg);
-  const up = p => setC(x => ({ ...x, ...p }));
-  const logo = e => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; if (f.size > 400e3) { toast('Use um logotipo de até 400 KB.', true); return; } const r = new FileReader(); r.onload = () => up({ logo: r.result }); r.readAsDataURL(f); };
-  const salvar = () => { setCfg(c); onClose(); toast('Configurações salvas.'); if (c.chaveAcesso !== cfg.chaveAcesso) recarregarIA(); };
-  const tudo = () => exportarBackup(STORE.idx().map(x => STORE.load(x.id)).filter(Boolean));
-  return html`<${Modal} title="Configurações" icon="gear" onClose=${onClose} footer=${html`<button className="btn" onClick=${onClose}>Cancelar</button><button className="btn g" onClick=${salvar}>Salvar</button>`}>
-    <div><h3>Sua empresa</h3><p className="sub">Aparece na barra lateral, na capa e no rodapé dos relatórios.</p></div>
-    <div className="grid g2">
-      <${Field} label="Empresa / incorporadora"><input className="in box" value=${c.empresa} onChange=${e => up({ empresa: e.target.value })} placeholder="Ex.: Construtora Horizonte" /><//>
-      <${Field} label="Analista responsável"><input className="in box" value=${c.analista} onChange=${e => up({ analista: e.target.value })} placeholder="Nome" /><//>
-      <${Field} label="Cargo / registro"><input className="in box" value=${c.cargo} onChange=${e => up({ cargo: e.target.value })} placeholder="Ex.: Gerente de novos negócios · CRECI 00000" /><//>
-      <${Field} label="Logotipo (PNG/JPG/SVG, até 400 KB)"><div style=${{ display: 'flex', gap: 8, alignItems: 'center' }}>${c.logo ? html`<img src=${c.logo} alt="logo" style=${{ height: 34, maxWidth: 120, objectFit: 'contain', background: '#fff', borderRadius: 6, padding: 3, border: '1px solid var(--line)' }} />` : null}<label className="btn sm" style=${{ cursor: 'pointer' }}>Escolher…<input type="file" accept="image/*" style=${{ display: 'none' }} onChange=${logo} /></label>${c.logo ? html`<button className="btn sm danger" onClick=${() => up({ logo: '' })}>Remover</button>` : null}</div><//>
-    </div>
-    <div><h3>Aparência</h3></div>
-    <${Seg} opts=${[['sistema', 'Automático'], ['claro', 'Claro'], ['escuro', 'Escuro']]} value=${c.tema} onChange=${v => { up({ tema: v }); aplicarTema(v); }} />
-    <div><h3>Inteligência artificial</h3><p className="sub">${ai?.ai ? 'Ativa no servidor · modelo ' + ai.model + (ai.webSearch ? ' · pesquisa web habilitada' : '') : MOTIVO_IA[ai?.motivo] || MOTIVO_IA.servidor}</p></div>
-    ${ai?.protegido || c.chaveAcesso ? html`<${Field} label="Chave de acesso do PREDIC (definida pelo administrador do servidor)"><input type="password" className="in box" value=${c.chaveAcesso} onChange=${e => up({ chaveAcesso: e.target.value })} autoComplete="off" /><//>` : null}
-    <div><h3>Dados</h3><p className="sub">Os estudos ficam salvos neste navegador. Faça backups periódicos.</p></div>
-    <div style=${{ display: 'flex', gap: 8, flexWrap: 'wrap' }}><button className="btn" onClick=${tudo}><${Icon} n="down" s=${14} />Backup de todos os estudos</button></div>
-  <//>`;
-}
-
 /* ============================ biblioteca de estudos ============================ */
-function Biblioteca({ cfg, abrir, novoEstudo, importarArquivo, abrirConfig, imgs }) {
-  const [l, setL] = useState(STORE.idx()); const [q, setQ] = useState('');
+const saudacao = () => { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; };
+const CapaPadrao = ({ i = 0 }) => html`<svg viewBox="0 0 300 120" preserveAspectRatio="xMidYMax slice" className="cover-sky" aria-hidden="true">
+  ${[18, 52, 92, 128, 170, 206, 246].map((xx, j) => { const h = 34 + ((j + i) * 37) % 70; return html`<g key=${j}><rect x=${xx} y=${120 - h} width=${26 + (j % 3) * 6} height=${h} rx="2" />${Array.from({ length: Math.floor(h / 14) }, (_, k) => html`<rect key=${k} className="w" x=${xx + 5} y=${120 - h + 7 + k * 14} width=${16 + (j % 3) * 6} height="2" opacity=${(j + k + i) % 4 === 0 ? .9 : .25} />`)}</g>`; })}
+</svg>`;
+function Biblioteca({ cfg, perfil, abrir, novoEstudo, importarArquivo, abrirConfig, sair, imgs }) {
+  const [l, setL] = useState(STORE.idx()); const [q, setQ] = useState(''); const [ord, setOrd] = useState('recentes');
+  const [carregando, setCarregando] = useState(!!perfil);
   const fileRef = useRef();
-  const lista = l.filter(x => !q || norm(x.nome + ' ' + x.endereco + ' ' + x.cidade).includes(norm(q)));
+  useSync();
+  const atualizar = useCallback(() => { if (!perfil) { setL(STORE.idx()); return; } SYNC.puxar().then(setL).catch(e => { if (!e.offline) toast(e.message, true); setL(STORE.idx()); }).finally(() => setCarregando(false)); }, [perfil]);
+  useEffect(() => { atualizar(); if (!perfil) return; const t = setInterval(atualizar, 45000); const f = () => document.visibilityState === 'visible' && atualizar(); document.addEventListener('visibilitychange', f); return () => { clearInterval(t); document.removeEventListener('visibilitychange', f); }; }, [atualizar]);
+  const lista = l.filter(x => !q || norm(x.nome + ' ' + x.endereco + ' ' + x.cidade + ' ' + (x.autor || '')).includes(norm(q)))
+    .sort(ord === 'nome' ? (a, b) => String(a.nome).localeCompare(String(b.nome)) : ord === 'tir' ? (a, b) => (b.tir ?? -9) - (a.tir ?? -9) : (a, b) => (b.atualizado || 0) - (a.atualizado || 0));
   const capaUrl = k => k && (imgs.find(i => i.key === k) || {}).url;
-  const duplicar = x => { const s = STORE.load(x.id); if (!s) return; STORE.novo({ ...s, id: undefined, estudo: { ...s.estudo, nome: s.estudo.nome + ' (cópia)' } }); setL(STORE.idx()); toast('Estudo duplicado.'); };
-  const excluir = x => { if (!confirmar('Excluir o estudo "' + x.nome + '"? Esta ação não pode ser desfeita.')) return; STORE.del(x.id); setL(STORE.idx()); toast('Estudo excluído.'); };
-  const NovoMenu = ({ big }) => html`<${Menu} button=${(t) => big ? html`<button className="card scard newcard" onClick=${t}><${Icon} n="plus" s=${26} /><b>Novo estudo</b><span className="sub">em branco, exemplo ou importação</span></button>` : html`<button className="btn g" onClick=${t}><${Icon} n="plus" s=${14} />Novo estudo</button>`}>
+  const comAbrir = async (fn, x) => { try { if (perfil) await SYNC.garantir(x.id); fn(); } catch (e) { toast('Não foi possível carregar o estudo: ' + e.message, true); } };
+  const duplicar = x => comAbrir(() => { const s = STORE.load(x.id); if (!s) return; STORE.novo({ ...s, id: undefined, estudo: { ...s.estudo, nome: s.estudo.nome + ' (cópia)' } }); setL(STORE.idx()); toast('Estudo duplicado.'); }, x);
+  const exportar = x => comAbrir(() => { const s = STORE.load(x.id); s && exportarBackup([s]); }, x);
+  const excluir = x => { if (!confirmar('Excluir o estudo "' + x.nome + '"' + (perfil ? ' para toda a equipe' : '') + '? Esta ação não pode ser desfeita.')) return; STORE.del(x.id); setL(STORE.idx()); toast('Estudo excluído.'); };
+  const leg = perfil && !lsGet('predic3-migrado-' + SYNC.ns, null) ? estudosLegados() : [];
+  const migrar = async () => { const n = await migrarLegados(); toast(n + ' estudo(s) enviados para a conta da empresa.'); atualizar(); };
+  // resumo da carteira
+  const reais = l.filter(x => !x.exemplo);
+  const vgvT = reais.reduce((a, x) => a + (x.vgv || 0), 0), aprov = reais.filter(x => x.k === 'ok').length, tirs = reais.map(x => x.tir).filter(ok);
+  const pend = perfil ? SYNC.pendentes().length : 0;
+  const nomeU = perfil ? perfil.usuario.nome.split(' ')[0] : cfg.analista ? cfg.analista.split(' ')[0] : '';
+  const NovoMenu = ({ big }) => html`<${Menu} button=${(t) => big ? html`<button className="card scard newcard" onClick=${t}><span className="newplus"><${Icon} n="plus" s=${22} /></span><b>Novo estudo</b><span className="sub">em branco, exemplo ou importação</span></button>` : html`<button className="btn g" onClick=${t}><${Icon} n="plus" s=${14} />Novo estudo</button>`}>
     <button onClick=${() => novoEstudo('vazio')}><${Icon} n="doc" />Estudo em branco</button>
     <button onClick=${() => novoEstudo('exemplo')}><${Icon} n="building" />Estudo de exemplo (Belém/PA)</button>
     <hr /><button onClick=${() => fileRef.current.click()}><${Icon} n="up" />Importar planilha (.xlsx) ou backup (.json)</button>
   <//>`;
-  return html`<div className="lib">
-    <div className="libhead">
-      <div style=${{ display: 'flex', alignItems: 'center', gap: 14 }}>
-        ${cfg.logo ? html`<img src=${cfg.logo} alt="" style=${{ height: 42, maxWidth: 140, objectFit: 'contain', background: '#fff', borderRadius: 8, padding: 4, border: '1px solid var(--line)' }} />` : html`<div className="logo"><span className="lmk" style=${{ width: 40, height: 40, fontSize: 20, borderRadius: 11 }}>P</span></div>`}
-        <div><div className="eyebrow">${cfg.empresa || 'PREDIC · viabilidade imobiliária com IA'}</div><h1>Estudos de viabilidade</h1></div>
+  return html`<div className="libwrap">
+    <header className="libbar">
+      <div className="libbar-in">
+        ${cfg.logo ? html`<div className="libbrand"><img src=${cfg.logo} alt="" className="clogo" /><span className="by">com <${Marca} s=${18} /> PREDIC</span></div>` : html`<${Logo} s=${32} sub=${cfg.empresa || 'Viabilidade imobiliária'} />`}
+        <span className="sp"></span>
+        ${l.length > 4 ? html`<div className="search"><${Icon} n="search" s=${14} /><input className="in box" placeholder="Buscar estudo, cidade ou autor…" value=${q} onChange=${e => setQ(e.target.value)} /></div>` : null}
+        ${perfil ? html`<span className=${'syncdot' + (pend ? ' warn' : '')} title=${pend ? pend + ' estudo(s) aguardando envio ao servidor' : 'Tudo salvo no servidor da empresa'}><${Icon} n=${pend ? 'cloudoff' : 'cloud'} s=${15} />${pend ? pend + ' pendente(s)' : 'Sincronizado'}</span>` : null}
+        <${MenuUsuario} perfil=${perfil} onConfig=${abrirConfig} onSair=${sair} />
       </div>
-      <div style=${{ display: 'flex', gap: 8, alignItems: 'center' }}>
-        ${l.length > 4 ? html`<div style=${{ position: 'relative' }}><${Icon} n="search" s=${14} style=${{ position: 'absolute', left: 9, top: 9, color: 'var(--mute)' }} /><input className="in box" style=${{ paddingLeft: 28, width: 220 }} placeholder="Buscar estudo…" value=${q} onChange=${e => setQ(e.target.value)} /></div>` : null}
-        <button className="iconbtn" title="Configurações" onClick=${abrirConfig}><${Icon} n="gear" /></button>
-        <${NovoMenu} />
+    </header>
+    <div className="lib">
+      <section className="libhero">
+        <div className="libhero-tx">
+          <div className="eyebrow gold">${perfil ? perfil.empresa.nome : cfg.empresa || 'PREDIC · inteligência para incorporação'}</div>
+          <h1 className="disp">${nomeU ? saudacao() + ', ' + nomeU + '.' : 'Estudos de viabilidade'}</h1>
+          <p className="lead">${reais.length ? 'Sua carteira de estudos em um só lugar. Abra um estudo para ver fluxo, cenários e parecer.' : 'Comece um estudo: o endereço puxa mapa, IBGE, SINAPI e serviços do entorno; o motor calcula TIR, VPL e exposição; a IA redige o parecer.'}</p>
+          <div className="row"><${NovoMenu} /><button className="btn ghost-inv" onClick=${() => novoEstudo('exemplo')}><${Icon} n="building" s=${14} />Ver um exemplo</button></div>
+        </div>
+        <div className="libhero-kpis">
+          ${[['Estudos', num(reais.length)], ['VGV em análise', vgvT ? milhoes(vgvT) : '—'], ['Aprovados', reais.length ? aprov + ' de ' + reais.length : '—'], ['TIR média', tirs.length ? pct(tirs.reduce((a, b) => a + b, 0) / tirs.length) : '—']].map(([k, v], i) => html`<div key=${i} className="hk"><span>${k}</span><b>${v}</b></div>`)}
+        </div>
+      </section>
+      ${leg.length ? html`<div className="banner"><${Icon} n="up" s=${18} /><div><b>${leg.length} estudo(s) da versão anterior</b> estão salvos só neste navegador. Envie para a conta da empresa para que a equipe veja e para não perder nada.</div><button className="btn g sm" onClick=${migrar}>Enviar agora</button><button className="btn sm ghost" onClick=${() => { lsSet('predic3-migrado-' + SYNC.ns, Date.now()); atualizar(); }}>Agora não</button></div>` : null}
+      ${!l.length && !carregando ? html`<div className="welcome">
+        ${[['local', 'Localize o terreno', 'O endereço puxa mapa, IBGE, SINAPI, altimetria e serviços do entorno automaticamente.'], ['financeiro', 'Modele produto e finanças', 'Mix, custos, cronograma, financiamento e cenários num fluxo mensal completo: TIR, VPL, exposição e payback.'], ['ia', 'Decida com IA', 'O assistente lê o estudo, simula cenários, pesquisa concorrentes, lê matrículas e redige o parecer para o comitê.']].map(([ic, t, d], i) => html`<div key=${i} className="card wcard"><div className="ico"><${Icon} n=${ic} s=${18} /></div><div><span className="eyebrow">Passo ${i + 1}</span><h3>${t}</h3><p className="sub">${d}</p></div></div>`)}
+      </div>` : null}
+      <div className="libtools">
+        <h2>${perfil ? 'Estudos da empresa' : 'Seus estudos'} <span className="count">${lista.length}</span></h2>
+        <span className="sp"></span>
+        ${l.length > 1 ? html`<${Seg} opts=${[['recentes', 'Recentes'], ['nome', 'Nome'], ['tir', 'Maior TIR']]} value=${ord} onChange=${setOrd} />` : null}
       </div>
+      <div className="libgrid">
+        <${NovoMenu} big=${true} />
+        ${carregando && !l.length ? [0, 1, 2].map(i => html`<div key=${i} className="card scard skel"><div className="cover"></div><i></i><i></i><i></i></div>`) : null}
+        ${lista.map((x, i) => html`<div key=${x.id} className="card scard" role="button" tabIndex="0" onClick=${e => { if (!e.target.closest('.menu')) abrir(x.id); }} onKeyDown=${e => { if (e.key === 'Enter') abrir(x.id); }}>
+          <div className="cover">${capaUrl(x.capa) ? html`<img src=${capaUrl(x.capa)} alt="" />` : html`<${CapaPadrao} i=${i} />`}
+            ${x.veredito ? html`<${Pill} k=${x.k}>${x.veredito}<//>` : null}${x.exemplo ? html`<span className="pill p-gold cover-tag">exemplo</span>` : null}
+            ${perfil && SYNC.status(x.id) !== 'ok' ? html`<span className="cover-sync" title="Aguardando envio ao servidor"><${Icon} n="cloudoff" s=${13} /></span>` : null}</div>
+          <div className="scard-h"><div style=${{ flex: 1, minWidth: 0 }}><h2 className="ell">${x.nome}</h2><div className="sub ell">${x.cidade || x.endereco || 'endereço não informado'}</div></div>
+            <${Menu} button=${t => html`<button className="iconbtn sm" onClick=${e => { e.stopPropagation(); t(); }} aria-label="Ações"><${Icon} n="more" /></button>`}>
+              <button onClick=${() => abrir(x.id)}><${Icon} n="doc" />Abrir</button><button onClick=${() => duplicar(x)}><${Icon} n="copy" />Duplicar</button>
+              <button onClick=${() => exportar(x)}><${Icon} n="down" />Exportar backup</button><hr /><button onClick=${() => excluir(x)}><${Icon} n="trash" />Excluir</button>
+            <//></div>
+          <div className="mets"><div><span>VGV</span><b>${x.vgv != null ? milhoes(x.vgv) : '—'}</b></div><div><span>TIR</span><b>${x.tir != null ? pct(x.tir) : '—'}</b></div><div><span>MARGEM</span><b>${x.margem != null ? pct(x.margem) : '—'}</b></div></div>
+          <div className="scard-f">${x.autor ? html`<span className="avatar xs" title=${x.autor}>${iniciais(x.autor)}</span>` : null}<span className="sub">${x.produtos || 1} produto${(x.produtos || 1) > 1 ? 's' : ''} · ${x.atualizado ? horaBR(x.atualizado) : '—'}${x.autor ? ' · ' + x.autor.split(' ')[0] : ''}</span></div>
+        </div>`)}
+      </div>
+      ${q && !lista.length ? html`<div className="note" style=${{ marginTop: 16 }}>Nenhum estudo encontrado para "${q}".</div>` : null}
+      <input type="file" ref=${fileRef} accept=".xlsx,.xls,.json" style=${{ display: 'none' }} onChange=${e => { const f = e.target.files[0]; e.target.value = ''; if (f) importarArquivo(f).then(() => setL(STORE.idx())); }} />
+      <p className="libfoot">${perfil ? html`<${Icon} n="shield" s=${13} />Estudos guardados no servidor da ${perfil.empresa.nome} e compartilhados com a equipe. Imagens geradas e conversas com a IA ficam neste navegador.` : html`<${Icon} n="alert" s=${13} />Os estudos ficam salvos neste navegador. Use "Exportar backup" para guardar uma cópia ou levar a outro computador.`}</p>
     </div>
-    ${l.length < 3 ? html`<div className="welcome">
-      ${[['local', 'Localize o terreno', 'O endereço puxa mapa, IBGE, SINAPI, altimetria e serviços do entorno automaticamente.'], ['financeiro', 'Modele produto e finanças', 'Mix, custos, cronograma, financiamento e cenários num fluxo mensal completo: TIR, VPL, exposição e payback.'], ['ia', 'Decida com IA', 'O assistente lê o estudo, simula cenários, pesquisa concorrentes, lê matrículas e redige o parecer para o comitê.']].map(([ic, t, d], i) => html`<div key=${i} className="card"><div className="ico"><${Icon} n=${ic} s=${18} /></div><div><h3>${i + 1}. ${t}</h3><p className="sub" style=${{ marginTop: 3 }}>${d}</p></div></div>`)}
-    </div>` : null}
-    <div className="libgrid">
-      <${NovoMenu} big=${true} />
-      ${lista.map(x => html`<div key=${x.id} className="card scard" role="button" tabIndex="0" onClick=${e => { if (!e.target.closest('.menu')) abrir(x.id); }} onKeyDown=${e => { if (e.key === 'Enter') abrir(x.id); }}>
-        <div className="cover">${capaUrl(x.capa) ? html`<img src=${capaUrl(x.capa)} alt="" />` : html`<svg viewBox="0 0 300 110" style=${{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: .35 }}><g fill="#fff">${[20, 60, 100, 140, 190, 235].map((xx, i) => html`<rect key=${i} x=${xx} y=${110 - (30 + (i * 37) % 70)} width=${30} height=${30 + (i * 37) % 70} rx="2" />`)}</g></svg>`}
-          ${x.veredito ? html`<${Pill} k=${x.k}>${x.veredito}<//>` : null}</div>
-        <div style=${{ display: 'flex', alignItems: 'flex-start', gap: 8 }}><div style=${{ flex: 1, minWidth: 0 }}><h2 style=${{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>${x.nome}</h2><div className="sub" style=${{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>${x.cidade || x.endereco || 'endereço não informado'}${x.exemplo ? ' · exemplo' : ''}</div></div>
-          <${Menu} button=${t => html`<button className="iconbtn" style=${{ width: 28, height: 28 }} onClick=${e => { e.stopPropagation(); t(); }} aria-label="Ações"><${Icon} n="more" /></button>`}>
-            <button onClick=${() => abrir(x.id)}><${Icon} n="doc" />Abrir</button><button onClick=${() => duplicar(x)}><${Icon} n="copy" />Duplicar</button>
-            <button onClick=${() => { const s = STORE.load(x.id); s && exportarBackup([s]); }}><${Icon} n="down" />Exportar backup</button><hr /><button onClick=${() => excluir(x)}><${Icon} n="trash" />Excluir</button>
-          <//></div>
-        <div className="mets"><div><span>VGV</span><b>${x.vgv != null ? milhoes(x.vgv) : '—'}</b></div><div><span>TIR</span><b>${x.tir != null ? pct(x.tir) : '—'}</b></div><div><span>MARGEM</span><b>${x.margem != null ? pct(x.margem) : '—'}</b></div></div>
-        <div className="sub">${x.produtos} produto${x.produtos > 1 ? 's' : ''} · atualizado ${x.atualizado ? horaBR(x.atualizado) : '—'}</div>
-      </div>`)}
-    </div>
-    ${q && !lista.length ? html`<div className="note" style=${{ marginTop: 16 }}>Nenhum estudo encontrado para "${q}".</div>` : null}
-    <input type="file" ref=${fileRef} accept=".xlsx,.xls,.json" style=${{ display: 'none' }} onChange=${e => { const f = e.target.files[0]; e.target.value = ''; if (f) importarArquivo(f).then(() => setL(STORE.idx())); }} />
-    <p className="note" style=${{ marginTop: 28, textAlign: 'center' }}>Os estudos ficam salvos neste navegador. Use "Exportar backup" para guardar uma cópia ou levar a outro computador.</p>
   </div>`;
 }
 
@@ -147,7 +166,22 @@ function CapaRelatorio({ st, M, cfg, real }) {
 
 /* ============================ estúdio (estudo aberto) ============================ */
 const UI_KEYS = new Set(['sec', 'prodSel', 'cenFluxo', 'sensInd', 'real', 'atualizado']);
-function Estudio({ inicial, cfg, ai, voltar, abrirConfig, imgs, addImg, delImg, setImgs, recarregarIA, alternarTema }) {
+// Outra pessoa salvou o estudo enquanto este navegador editava: o usuário escolhe qual versão vale.
+function ConflitoModal({ st, atual, recarregar }) {
+  const [busy, setBusy] = useState(false);
+  const deles = () => { SYNC.usarRemota(st.id, atual); recarregar(st.id); toast('Versão de ' + (atual.autor || 'outra pessoa') + ' carregada.'); };
+  const minha = async () => { setBusy(true); await SYNC.enviar(st.id, true); toast('Sua versão foi salva no servidor.'); };
+  const copia = () => { const n = STORE.novo({ ...st, id: undefined, estudo: { ...st.estudo, nome: (st.estudo.nome || 'Estudo') + ' (minha versão)' } }); SYNC.usarRemota(st.id, atual); recarregar(st.id); toast('Sua versão foi guardada como "' + n.estudo.nome + '".'); };
+  return html`<${Modal} title="Este estudo foi alterado por outra pessoa" icon="users" onClose=${() => { }} footer=${html`
+    <button className="btn" disabled=${busy} onClick=${copia}><${Icon} n="copy" s=${14} />Guardar a minha como cópia</button>
+    <button className="btn" disabled=${busy} onClick=${minha}>Sobrescrever com a minha</button>
+    <button className="btn g" disabled=${busy} onClick=${deles}>Usar a versão de ${(atual.autor || 'outra pessoa').split(' ')[0]}</button>`}>
+    <p><b>${atual.autor || 'Outra pessoa da equipe'}</b> salvou este estudo em ${horaBR(atual.atualizado)}, enquanto você também editava. As duas versões não podem ser juntadas automaticamente.</p>
+    <p className="sub">Recomendado: guardar a sua como cópia e seguir na versão mais recente; depois compare as duas na biblioteca.</p>
+  <//>`;
+}
+
+function Estudio({ inicial, cfg, ai, perfil, voltar, abrirConfig, sair, recarregar, imgs, addImg, delImg, setImgs, recarregarIA, alternarTema }) {
   const [st, setSt0] = useState(inicial);
   const [status, setStatus] = useState({});
   const [menu, setMenu] = useState(false);
@@ -232,7 +266,7 @@ function Estudio({ inicial, cfg, ai, voltar, abrirConfig, imgs, addImg, delImg, 
   const M = useMemo(() => compute(stD), [stD]);
   const abrirCopilot = () => { setCp(true); lsSet('predic3-cp', true); };
   const perguntar = (texto, op = {}) => { abrirCopilot(); setFila({ texto, web: !!op.web, id: uid() }); };
-  const ctx = { st, set, setProd, setE, setL, setSt, replaceSt, M, real, status, carregarReais, localizar, imgs, addImg: addImgE, delImg: delImgE, setCapa, capas, ai, estudoId: st.id, perguntar, abrirCopilot, abrirIA: setModalIA };
+  const ctx = { printAll, st, set, setProd, setE, setL, setSt, replaceSt, M, real, status, carregarReais, localizar, imgs, addImg: addImgE, delImg: delImgE, setCapa, capas, ai, estudoId: st.id, perguntar, abrirCopilot, abrirIA: setModalIA };
 
   // atalhos de teclado
   useEffect(() => {
@@ -265,13 +299,17 @@ function Estudio({ inicial, cfg, ai, voltar, abrirConfig, imgs, addImg, delImg, 
   const porProduto = s => !['local', 'legis', 'mercado'].includes(s);
   const ir = k => { set({ sec: k }); setMenu(false); window.scrollTo(0, 0); };
   const h = H.current;
+  useSync();
+  const sync = perfil ? SYNC.status(st.id) : 'ok';
+  const conflito = sync === 'conflito' ? SYNC.conflitos[st.id] : null;
+  const salvoTxt = salvo === 'erro' ? ['cr', 'Erro ao salvar'] : salvo !== true ? ['at', 'Salvando…'] : !perfil ? ['ok', 'Salvo neste navegador'] : sync === 'ok' ? ['ok', 'Salvo no servidor'] : sync === 'enviando' ? ['at', 'Sincronizando…'] : sync === 'offline' ? ['cr', 'Sem conexão · salvo neste navegador'] : sync === 'conflito' ? ['cr', 'Conflito de edição'] : ['cr', 'Não sincronizado'];
 
   return html`<div className="app">
-    <div className="mobbar noprint"><button onClick=${() => setMenu(true)} aria-label="Menu"><${Icon} n="menu" /></button><b style=${{ flex: 1 }}>PREDIC</b><button onClick=${() => setCp(c => !c)} aria-label="Assistente"><${Icon} n="ia" /></button></div>
+    <div className="mobbar noprint"><button onClick=${() => setMenu(true)} aria-label="Menu"><${Icon} n="menu" /></button><div style=${{ flex: 1, display: 'flex', alignItems: 'center', gap: 8 }}><${Marca} s=${24} /><b>PREDIC</b></div><button onClick=${() => setCp(c => !c)} aria-label="Assistente"><${Icon} n="ia" /></button></div>
     <div className=${'scrim' + (menu ? ' open' : '')} onClick=${() => setMenu(false)}></div>
     <aside className=${'side noprint' + (menu ? ' open' : '')}>
       <div className="brand">
-        <div className="logo">${cfg.logo ? html`<img src=${cfg.logo} alt="" />` : html`<span className="lmk">P</span>`}<span>${cfg.empresa && !cfg.logo ? cfg.empresa.slice(0, 18) : 'PREDIC'}</span><small>v3</small></div>
+        ${cfg.logo ? html`<div className="sidelogo"><img src=${cfg.logo} alt=${cfg.empresa || ''} /><span className="by"><${Marca} s=${14} />PREDIC</span></div>` : html`<${Logo} s=${30} sub=${cfg.empresa ? cfg.empresa.slice(0, 26) : 'Viabilidade imobiliária'} claro=${true} />`}
         <button className="studysw" onClick=${voltar} title="Voltar à biblioteca de estudos">
           <${Icon} n="grid" s=${15} style=${{ color: 'var(--sidemute)' }} />
           <div style=${{ minWidth: 0, flex: 1 }}><b>${st.estudo.nome || 'Estudo sem nome'}</b><span>${st.estudo.codigo}${real.ibge ? ' · ' + real.ibge.nome + '/' + real.ibge.uf : ''}</span></div>
@@ -293,7 +331,7 @@ function Estudio({ inicial, cfg, ai, voltar, abrirConfig, imgs, addImg, delImg, 
     <div className="main">
       <main className="content">
         <div className="topbar noprint">
-          <div className="saved">${salvo === true ? html`<i></i>Salvo` : salvo === 'erro' ? html`<i style=${{ background: 'var(--r2)' }}></i>Erro ao salvar` : html`<i style=${{ background: 'var(--y2)' }}></i>Salvando…`}</div>
+          <div className=${'saved s-' + salvoTxt[0]} title=${perfil ? 'Estudo compartilhado com a equipe da ' + perfil.empresa.nome : ''}><i></i>${salvoTxt[1]}</div>
           <span className="sp"></span>
           <button className="iconbtn" title="Desfazer (Ctrl+Z)" disabled=${!h.past.length} onClick=${desfazer}><${Icon} n="undo" /></button>
           <button className="iconbtn" title="Refazer (Ctrl+Y)" disabled=${!h.fut.length} onClick=${refazer}><${Icon} n="redo" /></button>
@@ -307,8 +345,9 @@ function Estudio({ inicial, cfg, ai, voltar, abrirConfig, imgs, addImg, delImg, 
             <button onClick=${() => exportarBackup([stRef.current])}><${Icon} n="down" />Exportar backup do estudo (.json)</button>
             <hr />
             <button onClick=${() => { const n = STORE.novo({ ...stRef.current, id: undefined, estudo: { ...stRef.current.estudo, nome: stRef.current.estudo.nome + ' (cópia)' } }); toast('Cópia criada na biblioteca: ' + n.estudo.nome); }}><${Icon} n="copy" />Duplicar estudo</button>
-            <button onClick=${abrirConfig}><${Icon} n="gear" />Configurações</button>
+            <button onClick=${() => abrirConfig()}><${Icon} n="gear" />Configurações</button>
           <//>
+          <${MenuUsuario} perfil=${perfil} onConfig=${abrirConfig} onSair=${sair} compacto=${true} />
           <button className=${'aibtn' + (cp ? ' on' : '')} onClick=${() => { setCp(c => { lsSet('predic3-cp', !c); return !c; }); }} title="Assistente de IA (Ctrl+I)"><${Icon} n="ia" />Assistente IA</button>
         </div>
         ${printAll ? html`<${CapaRelatorio} st=${st} M=${M} cfg=${cfg} real=${real} />` : null}
@@ -328,6 +367,7 @@ function Estudio({ inicial, cfg, ai, voltar, abrirConfig, imgs, addImg, delImg, 
     </div>
     ${modalIA === 'extracao' ? html`<${ExtracaoModal} ctx=${ctx} onClose=${() => setModalIA(null)} />` : null}
     ${modalIA === 'produtos' ? html`<${ProdutosModal} ctx=${ctx} onClose=${() => setModalIA(null)} />` : null}
+    ${conflito ? html`<${ConflitoModal} st=${st} atual=${conflito} recarregar=${recarregar} />` : null}
   </div>`;
 }
 
@@ -335,18 +375,43 @@ function Estudio({ inicial, cfg, ai, voltar, abrirConfig, imgs, addImg, delImg, 
 function App() {
   const [cfg, setCfg0] = useState(() => ({ ...CFG0, ...lsGet(CFG_KEY, {}) }));
   const setCfg = c => { setCfg0(c); lsSet(CFG_KEY, c); aplicarTema(c.tema); };
-  const [aberto, setAberto] = useState(null);
+  // fases: carregando → entrada (login/primeiro acesso) → senha (troca obrigatória) → pronto; "local" quando aberto sem servidor
+  const [fase, setFase] = useState('carregando');
+  const [status, setStatus] = useState({});
+  const [perfil, setPerfil0] = useState(null);
+  const [aberto, setAberto] = useState(null), [nonce, setNonce] = useState(0);
   const [ai, setAi] = useState({ ai: false, motivo: '' });
   const [imgs, setImgs] = useState([]);
   const [cfgOpen, setCfgOpen] = useState(false);
-  const [, force] = useState(0);
+  const setPerfil = p => { MODO.perfil = p; setPerfil0(p); };
   const recarregarIA = () => AI.status().then(setAi);
-  useEffect(() => { aplicarTema(cfg.tema); migrarV2(); recarregarIA(); IDB.all().then(l => setImgs(l.map(x => ({ ...x, url: x.blob ? URL.createObjectURL(x.blob) : x.url }))));
-    const id = new URLSearchParams(location.hash.slice(1)).get('estudo'); if (id) { const s = STORE.load(id); if (s) setAberto(s); } force(1); }, []);
-  useEffect(() => { const t = aberto ? (aberto.estudo.nome || 'Estudo') + ' · PREDIC' : 'PREDIC · Viabilidade imobiliária'; document.title = t; history.replaceState(null, '', aberto ? '#estudo=' + aberto.id : location.pathname + location.search); }, [aberto && aberto.id]);
+  const abrirHash = () => { const id = new URLSearchParams(location.hash.slice(1)).get('estudo'); if (id) abrir(id, true); };
+  const entrar = p => { setPerfil(p); SYNC.iniciar(p.empresa.id); setFase(p.usuario.trocarSenha ? 'senha' : 'pronto'); recarregarIA(); if (!p.usuario.trocarSenha) abrirHash(); };
+  const paraEntrada = () => { setPerfil(null); setAberto(null); setFase('entrada'); SRV.get('/api/status').then(setStatus).catch(() => { }); };
+  useEffect(() => {
+    aplicarTema(cfg.tema); IDB.all().then(l => setImgs(l.map(x => ({ ...x, url: x.blob ? URL.createObjectURL(x.blob) : x.url }))));
+    const local = () => { migrarV2(); setFase('local'); recarregarIA(); abrirHash(); };
+    if (!MODO.servidor) { local(); return; }
+    SRV.get('/api/status').then(async s => { setStatus(s); if (s.sessao) entrar(await SRV.get('/api/auth/eu')); else setFase('entrada'); })
+      .catch(e => { if (e.offline || e.status === 404) local(); else { toast(e.message, true); setFase('entrada'); } });
+    // sessão expirada em qualquer chamada: volta para a tela de entrada sem perder o que está pendente de envio
+    const exp = () => { if (MODO.perfil) { toast('Sua sessão expirou. Entre novamente; nada do que foi editado se perdeu.', true); paraEntrada(); } };
+    SRV.ouvintes.add(exp); return () => SRV.ouvintes.delete(exp);
+  }, []);
+  useEffect(() => { const t = aberto ? (aberto.estudo.nome || 'Estudo') + ' · PREDIC' : 'PREDIC · Viabilidade imobiliária'; document.title = t; if (fase === 'pronto' || fase === 'local') history.replaceState(null, '', aberto ? '#estudo=' + aberto.id : location.pathname + location.search); }, [aberto && aberto.id, fase]);
+  const sair = async () => {
+    const n = SYNC.pendentes().length;
+    if (n && !confirmar(n + ' estudo(s) ainda não foram enviados ao servidor e serão perdidos se você sair agora. Sair mesmo assim?')) return;
+    try { await SRV.post('/api/auth/logout'); } catch (e) { }
+    SYNC.limpar(); paraEntrada();
+  };
   const addImg = async im => { const key = 'img-' + Date.now() + '-' + uid(); await IDB.put(key, im); setImgs(l => l.concat([{ ...im, key, url: im.blob ? URL.createObjectURL(im.blob) : im.url }])); return key; };
   const delImg = async key => { await IDB.del(key); setImgs(l => l.filter(x => x.key !== key)); };
-  const abrir = id => { const s = STORE.load(id); if (s) { setAberto(s); window.scrollTo(0, 0); } else toast('Estudo não encontrado.', true); };
+  async function abrir(id, silencioso) {
+    if (MODO.perfil) { try { await SYNC.garantir(id); } catch (e) { if (!STORE.load(id)) { if (!silencioso) toast('Não foi possível abrir o estudo: ' + e.message, true); return; } toast('Sem conexão com o servidor: abrindo a cópia deste navegador.', true); } }
+    const s = STORE.load(id); if (s) { setAberto(s); window.scrollTo(0, 0); } else if (!silencioso) toast('Estudo não encontrado.', true);
+  }
+  const recarregar = id => { const s = STORE.load(id); if (s) { setAberto(s); setNonce(n => n + 1); } };
   const novoEstudo = tipo => { const b = tipo === 'exemplo' ? estudoExemplo() : estudoVazio(); const s = STORE.novo(b); setAberto(s); if (tipo !== 'exemplo') toast('Estudo em branco criado. Comece pelo endereço em Localização.'); };
   const importarArquivo = async f => {
     try {
@@ -355,11 +420,19 @@ function App() {
     } catch (e) { toast('Não foi possível importar: ' + e.message, true); }
   };
   const alternarTema = () => { const escuro = document.documentElement.dataset.theme === 'dark' || (!document.documentElement.dataset.theme && matchMedia('(prefers-color-scheme: dark)').matches); setCfg({ ...cfg, tema: escuro ? 'claro' : 'escuro' }); };
+  // com conta, empresa, logotipo e responsável vêm do servidor
+  const cfgEf = perfil ? { ...cfg, empresa: perfil.empresa.nome, logo: perfil.empresa.logo, analista: perfil.usuario.nome, cargo: perfil.usuario.cargo } : cfg;
+  const abrirConfig = aba => setCfgOpen(aba || true);
+
+  if (fase === 'carregando') return html`<div className="splash"><${Marca} s=${56} /><span className="spin"></span></div>`;
+  if (fase === 'entrada') return html`<${React.Fragment}><${Entrada} status=${status} onEntrou=${entrar} /><${Toasts} /><//>`;
+  if (fase === 'senha') return html`<${React.Fragment}><${TrocarSenha} perfil=${perfil} onPronto=${p => { setPerfil(p); setFase('pronto'); }} onSair=${sair} /><${Toasts} /><//>`;
   return html`<${React.Fragment}>
-    ${aberto ? html`<${Estudio} key=${aberto.id} inicial=${aberto} cfg=${cfg} ai=${ai} imgs=${imgs} addImg=${addImg} delImg=${delImg} setImgs=${setImgs} recarregarIA=${recarregarIA} alternarTema=${alternarTema}
-        voltar=${() => setAberto(null)} abrirConfig=${() => setCfgOpen(true)} />`
-      : html`<${Biblioteca} cfg=${cfg} imgs=${imgs} abrir=${abrir} novoEstudo=${novoEstudo} importarArquivo=${importarArquivo} abrirConfig=${() => setCfgOpen(true)} />`}
-    ${cfgOpen ? html`<${ConfigModal} cfg=${cfg} setCfg=${setCfg} ai=${ai} recarregarIA=${recarregarIA} onClose=${() => { setCfgOpen(false); aplicarTema(cfg.tema); }} />` : null}
+    ${aberto ? html`<${Estudio} key=${aberto.id + ':' + nonce} inicial=${aberto} cfg=${cfgEf} ai=${ai} perfil=${perfil} imgs=${imgs} addImg=${addImg} delImg=${delImg} setImgs=${setImgs} recarregarIA=${recarregarIA} alternarTema=${alternarTema}
+        voltar=${() => setAberto(null)} abrirConfig=${abrirConfig} sair=${sair} recarregar=${recarregar} />`
+      : html`<${Biblioteca} cfg=${cfgEf} perfil=${perfil} imgs=${imgs} abrir=${abrir} novoEstudo=${novoEstudo} importarArquivo=${importarArquivo} abrirConfig=${abrirConfig} sair=${sair} />`}
+    ${cfgOpen ? html`<${ConfigModal} cfg=${cfg} setCfg=${setCfg} ai=${ai} perfil=${perfil} setPerfil=${setPerfil} aba0=${typeof cfgOpen === 'string' ? cfgOpen : null} onSair=${sair} onClose=${() => { setCfgOpen(false); aplicarTema(cfg.tema); }} />` : null}
+    ${perfil && !perfil.usuario.termos ? html`<${AceiteTermos} onPronto=${setPerfil} onSair=${sair} />` : null}
     <${Toasts} />
   <//>`;
 }
@@ -371,7 +444,7 @@ class Boundary extends React.Component {
   render() {
     if (!this.state.e) return this.props.children;
     return html`<div style=${{ padding: 40, maxWidth: 640, margin: '0 auto' }}><h1>Algo deu errado</h1><p className="note" style=${{ margin: '10px 0' }}>${String(this.state.e.message || this.state.e)}</p>
-      <p className="sub" style=${{ marginBottom: 14 }}>Seus estudos continuam salvos no navegador.</p>
+      <p className="sub" style=${{ marginBottom: 14 }}>Seus estudos continuam salvos.</p>
       <div style=${{ display: 'flex', gap: 8 }}><button className="btn pri" onClick=${() => { location.hash = ''; location.reload(); }}>Voltar à biblioteca</button></div></div>`;
   }
 }

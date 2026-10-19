@@ -1,18 +1,25 @@
-# Render Blueprint: um Web Service Node que roda server/server.mjs (front-end + IA).
+# Render Blueprint: um Web Service Node que roda server/server.mjs (front-end + IA + banco SQLite).
+# O banco precisa de disco persistente; no Render, disco exige plano pago (starter).
 services:
   - type: web
     name: predic
     runtime: node
-    plan: free
+    plan: starter
     buildCommand: npm ci --omit=dev
     startCommand: npm start
     healthCheckPath: /api/status
+    disk:
+      name: predic-dados
+      mountPath: /var/data
+      sizeGB: 1
     envVars:
       - key: NODE_VERSION
         value: "22"
       - key: HOST
         value: 0.0.0.0
+      - key: TRUST_PROXY
+        value: "1"
+      - key: PREDIC_DATA_DIR
+        value: /var/data
       - key: ANTHROPIC_API_KEY
-        sync: false
-      - key: PREDIC_ACCESS_KEY
         sync: false

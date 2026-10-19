@@ -3,15 +3,16 @@
 
 /* ============================ cliente ============================ */
 const AI = {
-  chave: () => { try { return JSON.parse(localStorage.getItem('predic3-config') || '{}').chaveAcesso || ''; } catch (e) { return ''; } },
-  headers() { const h = { 'Content-Type': 'application/json' }; const k = AI.chave(); if (k) h['x-predic-key'] = k; return h; },
+  // a sessão vai no cookie; o cabeçalho x-predic protege contra requisições forjadas por outros sites
+  headers: () => ({ 'Content-Type': 'application/json', 'x-predic': '1' }),
+  falha(r, j) { if (r.status === 401) SRV.ouvintes.forEach(f => f()); return new Error(j.erro || 'Falha na IA (HTTP ' + r.status + ')'); },
   async status() {
     if (location.protocol === 'file:') return { ai: false, motivo: 'arquivo' };
     try { const r = await fetch('/api/status', { cache: 'no-store' }); if (!r.ok) throw 0; const j = await r.json(); return { ...j, motivo: j.ai ? '' : 'chave' }; } catch (e) { return { ai: false, motivo: 'servidor' }; }
   },
   async stream(rota, body, onEvent, signal) {
     const r = await fetch(rota, { method: 'POST', headers: AI.headers(), body: JSON.stringify(body), signal });
-    if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.erro || 'Falha na IA (HTTP ' + r.status + ')'); }
+    if (!r.ok) { const j = await r.json().catch(() => ({})); throw AI.falha(r, j); }
     const rd = r.body.getReader(), dec = new TextDecoder(); let buf = '', fim = null;
     for (;;) {
       const { value, done } = await rd.read(); if (done) break;
@@ -31,7 +32,7 @@ const AI = {
   async json(tarefa, body) {
     const r = await fetch('/api/ai/json', { method: 'POST', headers: AI.headers(), body: JSON.stringify({ tarefa, ...body }) });
     const j = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(j.erro || 'Falha na IA (HTTP ' + r.status + ')');
+    if (!r.ok) throw AI.falha(r, j);
     return j.dados;
   }
 };
@@ -297,6 +298,7 @@ function Copilot({ ctx, onClose, fila, consumir }) {
             : html`<button className="send" title="Enviar (Enter)" disabled=${semIA || (!txt.trim() && !anex.length)} onClick=${() => enviar()}><${Icon} n="send" s=${15} /></button>`}
         </div>
       </div>
+      ${anex.length ? html`<div className="privnote"><${Icon} n="shield" s=${12} />Anexos vão à Anthropic para a resposta e não ficam guardados no PREDIC.</div>` : null}
       <div className="note" style=${{ fontSize: 10, textAlign: 'center' }}>A IA pode errar. Confira números importantes antes de levar ao comitê.</div>
     </div>
   </aside>`;
@@ -414,6 +416,7 @@ function ExtracaoModal({ ctx, onClose }) {
         <input type="file" multiple accept=${ACEITOS} style=${{ display: 'none' }} onChange=${e => { add(e.target.files); e.target.value = ''; }} /></label>
       ${arqs.length ? html`<div style=${{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>${arqs.map((a, i) => html`<span key=${i} className="filechip"><${Icon} n="doc" s=${13} /><span>${a.name}</span><span className="sub">${num(a.size / 1e6, 1)} MB</span><button className="rowx" onClick=${() => setArqs(l => l.filter((_, j) => j !== i))}>×</button></span>`)}</div>` : null}
       ${total > 28e6 ? html`<div className="alert cr">Os arquivos somam mais de 28 MB. Remova algum para enviar.</div>` : null}
+      <div className="privnote"><${Icon} n="shield" s=${13} />Os arquivos são enviados à Anthropic só para esta leitura e não ficam guardados no PREDIC. Matrículas e certidões contêm dados pessoais: envie apenas o necessário ao estudo.</div>
       ${busy ? html`<div className="alert na">A leitura leva de 20 segundos a 2 minutos, conforme o número de páginas.</div>` : null}`
     : html`<div className="alert na"><strong>${({ matricula: 'Matrícula', certidao: 'Certidão', zoneamento: 'Zoneamento / consulta prévia', tabela_vendas: 'Tabela de vendas', iptu: 'IPTU', outro: 'Documento' })[res.tipo_documento]}.</strong> ${res.resumo}</div>
       ${res.alertas.length ? html`<label className="check"><input type="checkbox" checked=${!!sel.alertas} onChange=${() => tg('alertas')} /><div><b>Alertas</b> <span className="sub">(adicionar ao parecer jurídico)</span><ul style=${{ paddingLeft: 18, marginTop: 4 }}>${res.alertas.map((a, i) => html`<li key=${i}>${a}</li>`)}</ul></div></label>` : null}
@@ -426,10 +429,10 @@ function ExtracaoModal({ ctx, onClose }) {
 }
 
 /* ============================ sugestão de produtos ============================ */
-function produtoDaIA(x, base) {
+function produtoDaIA(x, base, tetos = TETO_MCMV) {
   const P = novoProduto(x.nome, false);
   const mcmv = x.programa === 'mcmv';
-  return { ...P, nome: x.nome, descr: x.descricao + (x.racional ? '\n\nRacional: ' + x.racional : ''), padrao: x.padrao, tipoEdif: x.tipoEdif, programa: x.programa, faixa: mcmv ? 3 : null, teto: mcmv ? TETO_MCMV[3] : null,
+  return { ...P, nome: x.nome, descr: x.descricao + (x.racional ? '\n\nRacional: ' + x.racional : ''), padrao: x.padrao, tipoEdif: x.tipoEdif, programa: x.programa, faixa: mcmv ? 3 : null, teto: mcmv ? tetos[3] : null,
     pavimentos: Math.max(1, Math.round(x.pavimentos)), unAndar: Math.max(1, Math.round(x.unAndar)), custo: x.custo_obra_m2, vso: x.vso, prazo: Math.max(6, Math.round(x.prazo_obra)), comum: x.area_comum, garagem: x.area_garagem, vagas: Math.round(x.vagas),
     mix: x.mix.filter(m => m.un > 0 && m.area > 0).map(m => ({ tipo: m.tipo, un: Math.round(m.un), area: m.area, preco: Math.round(m.preco), perm: 0 })), lazer: x.lazer,
     custos: { ...clone(base.custos), ret: mcmv ? 1 : (base.programa === 'mcmv' ? 4 : base.custos?.ret ?? 4) }, crono: clone(base.crono).map(c => ({ ...c, id: uid() })), permFin: base.permFin, terrenoCash: base.terrenoCash,
@@ -439,7 +442,7 @@ function ProdutosModal({ ctx, onClose }) {
   const { st, M, real } = ctx; const [inst, setInst] = useState(''), [busy, setBusy] = useState(false), [res, setRes] = useState(null), [add, setAdd] = useState({});
   const gerar = async () => { setBusy(true); try { setRes(await AI.json('produtos', { contexto: contextoIA(st, M, real), instrucoes: inst })); setAdd({}); } catch (e) { toast(e.message, true); } setBusy(false); };
   const base = M.PR;
-  const calc = useMemo(() => res ? res.produtos.map(x => { const P = produtoDaIA(x, base); if (!P.mix.length) return { P, q: null }; return { P, q: quick({ ...st, produtos: [P], prodSel: 0 }), D: derive(P) }; }) : [], [res]);
+  const calc = useMemo(() => res ? res.produtos.map(x => { const P = produtoDaIA(x, base, M.PM.tetoMcmv); if (!P.mix.length) return { P, q: null }; return { P, q: quick({ ...st, produtos: [P], prodSel: 0 }), D: derive(P) }; }) : [], [res]);
   const atual = quick(st);
   const incluir = i => { const P = calc[i].P; ctx.replaceSt(s => ({ ...s, produtos: s.produtos.concat([{ ...P, id: uid() }]) })); setAdd(a => ({ ...a, [i]: true })); toast(P.nome + ' adicionado ao estudo.'); };
   return html`<${Modal} title="Sugerir produtos com IA" icon="ia" lg=${true} onClose=${onClose} footer=${html`<button className="btn" onClick=${onClose}>Fechar</button>${Object.keys(add).length ? html`<button className="btn pri" onClick=${() => { ctx.set({ sec: 'conclusao' }); onClose(); }}>Comparar produtos →</button>` : null}<button className="btn ia" disabled=${busy} onClick=${gerar}>${busy ? 'Gerando…' : res ? 'Gerar novas alternativas' : 'Gerar alternativas'}</button>`}>
