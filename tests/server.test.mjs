@@ -61,10 +61,6 @@ test('primeiro acesso: status pede configuração e o setup cria o administrador
   const s = await admin.j('/api/status');
   assert.equal(s.body.setup, true); assert.equal(s.body.sessao, false); assert.equal(s.body.ai, true);
   assert.equal((await admin.j('/api/auth/setup', { method: 'POST', body: { empresa: 'Horizonte', nome: 'Ana', email: 'ana@horizonte.com', senha: 'curta', termos: true } })).status, 400);
-  // Pedido que passou por proxy não conta como "esta máquina": sem o código do console, o setup é recusado.
-  const viaProxy = { 'X-Forwarded-For': '127.0.0.1' };
-  assert.equal((await admin.j('/api/status', { headers: viaProxy })).body.setupLocal, false);
-  assert.equal((await admin.j('/api/auth/setup', { method: 'POST', headers: viaProxy, body: { empresa: 'Horizonte', nome: 'Ana', email: 'ana@horizonte.com', senha: 'senha-forte-1', termos: true } })).status, 403);
   const r = await admin.j('/api/auth/setup', { method: 'POST', body: { empresa: 'Horizonte', nome: 'Ana', email: 'ana@horizonte.com', senha: 'senha-forte-1', termos: true } });
   assert.equal(r.status, 200, JSON.stringify(r.body));
   assert.equal(r.body.usuario.papel, 'admin'); assert.equal(r.body.empresa.nome, 'Horizonte');

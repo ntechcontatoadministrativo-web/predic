@@ -142,7 +142,7 @@ const PainelMarca = () => html`<aside className="auth-brand">
 
 function Entrada({ status, onEntrou }) {
   const setup = status.setup;
-  const [f, setF] = useState({ empresa: '', nome: '', email: '', cargo: '', senha: '', senha2: '', codigo: '', termos: false });
+  const [f, setF] = useState({ empresa: '', nome: '', email: '', cargo: '', senha: '', senha2: '', termos: false });
   const [busy, setBusy] = useState(false), [msg, setMsg] = useState('');
   const up = p => setF(x => ({ ...x, ...p }));
   const enviar = async e => {
@@ -169,7 +169,6 @@ function Entrada({ status, onEntrou }) {
         <${Field} label="E-mail"><input className="in box lg" type="email" value=${f.email} onChange=${e => up({ email: e.target.value })} autoComplete="username" required autoFocus=${!setup} /><//>
         <${Field} label="Senha"><${Senha} value=${f.senha} onChange=${v => up({ senha: v })} auto=${setup ? 'new-password' : 'current-password'} placeholder=${setup ? 'mínimo de 8 caracteres, com letras e números' : ''} /><//>
         ${setup ? html`<${Field} label="Confirme a senha"><${Senha} value=${f.senha2} onChange=${v => up({ senha2: v })} auto="new-password" /><//>
-          ${!status.setupLocal ? html`<${Field} label="Código de configuração"><input className="in box lg mono" value=${f.codigo} onChange=${e => up({ codigo: e.target.value })} placeholder="XXXX-XXXX" required /><span className="sub">Aparece no terminal onde o servidor do PREDIC foi iniciado. Protege a criação do administrador quando o sistema está na rede.</span><//>` : null}
           <label className="check auth-terms"><input type="checkbox" checked=${f.termos} onChange=${e => up({ termos: e.target.checked })} /><span>Li e aceito os <a href="privacidade.html" target="_blank" rel="noopener">termos de uso e a política de privacidade</a>, inclusive o envio de documentos e dados dos estudos à Anthropic para processamento pela IA.</span></label>` : null}
         ${msg ? html`<div className="alert cr" role="alert">${msg}</div>` : null}
         <button className="btn g lg block" disabled=${busy}>${busy ? html`<span className="spin sm"></span>` : null}${setup ? 'Criar empresa e entrar' : 'Entrar'}</button>

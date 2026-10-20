@@ -41,7 +41,7 @@ A chave da API fica só no servidor; o navegador nunca a vê. O modelo padrão �
 
 1. No [Render](https://render.com), clique em **New > Blueprint** e escolha este repositório. O `render.yaml` cria o serviço com disco persistente para o banco (plano *starter*; disco não existe no plano gratuito).
 2. Informe `ANTHROPIC_API_KEY` quando o Render pedir.
-3. Depois do deploy, abra **Logs** e copie o *código de configuração*. Acesse o endereço `https://predic-xxxx.onrender.com`, crie a empresa e o administrador usando esse código.
+3. Depois do deploy, acesse o endereço `https://predic-xxxx.onrender.com` e crie a empresa e o administrador. Quem abrir o link primeiro vira administrador, então faça isso logo após o deploy.
 4. O administrador convida os demais usuários em *Configurações > Usuários*.
 
 ### Docker

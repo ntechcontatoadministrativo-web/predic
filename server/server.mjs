@@ -3,7 +3,6 @@ import http from 'node:http';
 import https from 'node:https';
 import fs from 'node:fs';
 import path from 'node:path';
-import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import Anthropic from '@anthropic-ai/sdk';
 import { betaZodOutputFormat } from '@anthropic-ai/sdk/helpers/beta/zod';
@@ -46,10 +45,8 @@ let fallbackRecusado = false; // a API recusou o beta uma vez: segue sem ele at�
 
 const { q, tx } = abrirBanco(DATA_DIR);
 
-// Sem nenhum usuário, o primeiro acesso cria a empresa e o administrador. Fora desta máquina, exige o código impresso no console.
-let codigoSetup = '';
+// Sem nenhum usuário, o primeiro acesso cria a empresa e o administrador.
 const precisaSetup = () => q.contarUsuarios.get().n === 0;
-if (precisaSetup()) codigoSetup = crypto.randomBytes(4).toString('hex').toUpperCase().replace(/(.{4})/, '$1-');
 
 /* ============================ utilidades HTTP ============================ */
 const TLS = env.PREDIC_TLS_CERT && env.PREDIC_TLS_KEY ? { cert: fs.readFileSync(env.PREDIC_TLS_CERT), key: fs.readFileSync(env.PREDIC_TLS_KEY) } : null;
@@ -58,8 +55,6 @@ const ipDe = req => {
   if (TRUST_PROXY) { const f = String(req.headers['x-forwarded-for'] || '').split(',').pop().trim(); if (f) return f; }
   return (req.socket.remoteAddress || '?').replace(/^::ffff:/, '');
 };
-// "Esta máquina" só vale para conexão direta: pedido que passou por proxy nunca é local.
-const ehLocal = req => !req.headers['x-forwarded-for'] && ['127.0.0.1', '::1'].includes((req.socket.remoteAddress || '').replace(/^::ffff:/, ''));
 const seguro = req => !!TLS || (TRUST_PROXY && String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim() === 'https');
 const erro = (status, msg) => Object.assign(new Error(msg), { status });
 
@@ -283,12 +278,11 @@ const rota = (metodo, padrao, op, fn) => ROTAS.push({ metodo, re: new RegExp('^'
 
 rota('GET', '/api/status', 'publico', (req, res) => {
   const u = usuarioDaSessao(req);
-  json(res, 200, { ai: HAS_KEY, model: MODEL, modelExtracao: MODEL_EXTRACAO, webSearch: WEB, versao: VERSAO, setup: precisaSetup(), setupLocal: ehLocal(req), sessao: !!u, servidor: true });
+  json(res, 200, { ai: HAS_KEY, model: MODEL, modelExtracao: MODEL_EXTRACAO, webSearch: WEB, versao: VERSAO, setup: precisaSetup(),sessao: !!u, servidor: true });
 });
 
 rota('POST', '/api/auth/setup', 'publico', async (req, res, b) => {
   if (!precisaSetup()) throw erro(409, 'O PREDIC já foi configurado. Entre com sua conta.');
-  if (!ehLocal(req) && String(b.codigo || '').trim().toUpperCase() !== codigoSetup) throw erro(403, 'Código de configuração inválido. Ele aparece no console (terminal) do servidor.');
   if (!b.termos) throw erro(400, 'É preciso aceitar os termos de uso e a política de privacidade.');
   const nome = String(b.nome || '').trim(), email = String(b.email || '').trim(), empresa = String(b.empresa || '').trim();
   if (!empresa || !nome) throw erro(400, 'Informe o nome da empresa e o seu nome.');
@@ -296,7 +290,6 @@ rota('POST', '/api/auth/setup', 'publico', async (req, res, b) => {
   const ps = validaSenha(b.senha); if (ps) throw erro(400, ps);
   const senha = await hashSenha(b.senha), now = Date.now(), eid = novoId('emp_'), uid = novoId('usr_');
   tx(() => { q.novaEmpresa.run(eid, empresa.slice(0, 120), null, now); q.novoUsuario.run(uid, eid, email, nome.slice(0, 120), String(b.cargo || '').slice(0, 120), senha, 'admin', 0, now, now); });
-  codigoSetup = '';
   const u = q.usuario.get(uid); registrar(req, u, 'setup', 'empresa criada'); abrirSessao(req, res, u);
   json(res, 200, perfil(u));
 });
@@ -362,7 +355,6 @@ rota('POST', '/api/conta/excluir', 'sessao', async (req, res, b, u) => {
     if (!outros.length) { q.excluirEmpresa.run(u.empresa_id); } // última conta: apaga a empresa, os estudos e o uso
     else { q.anonimizarUso.run(u.id); q.anonimizarRegistros.run(u.id); q.excluirUsuario.run(u.id); }
   });
-  if (!outros.length && precisaSetup()) codigoSetup = crypto.randomBytes(4).toString('hex').toUpperCase().replace(/(.{4})/, '$1-');
   res.setHeader('Set-Cookie', cookieSessao('', 0, seguro(req)));
   json(res, 200, { ok: true, empresaExcluida: !outros.length });
 });
@@ -532,6 +524,6 @@ server.listen(PORT, HOST, () => {
   console.log(`  Dados em ${DATA_DIR}`);
   console.log(`  IA: ${HAS_KEY ? 'ativa · ' + MODEL + (MODEL_EXTRACAO !== MODEL ? ' (documentos: ' + MODEL_EXTRACAO + ')' : '') + (COTA_PADRAO > 0 ? ' · cota padrão US$ ' + COTA_PADRAO + '/mês por empresa' : '') : 'desativada (defina ANTHROPIC_API_KEY no .env)'}`);
   if (HOST === '0.0.0.0' && !TLS && !TRUST_PROXY) console.log('  Aviso: aberto na rede sem HTTPS. Senhas trafegam sem criptografia; veja "HTTPS" no README.');
-  if (codigoSetup) console.log(`\n  Primeiro acesso: crie a conta de administrador no navegador.\n  Código de configuração (exigido fora desta máquina): ${codigoSetup}`);
+  if (precisaSetup()) console.log('\n  Primeiro acesso: crie a conta de administrador no navegador.');
   console.log('');
 });
