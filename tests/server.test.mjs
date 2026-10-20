@@ -8,6 +8,9 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 
 const recebidos = [];
+const PESQUISA_OK = { resumo: 'Bairro residencial consolidado.', terreno: { area_m2: null, lote: null, zona: 'ZR-4', ca: 4, to_pct: 50, gabarito_m: 80, classe: 'urbana', fonte: 'Lei municipal' },
+  mercado: { renda_mil: 9.4, renda_fonte: 'Censo 2022', demanda_anual: 1200, demanda_metodo: 'estimativa', perfil: 'Classe B', perfil_desc: 'famílias', cub_m2: 2900, cub_fonte: 'Sinduscon' },
+  concorrentes: [], infraestrutura: [], restricoes: [], licencas: [], riscos_mercado: [], alertas: ['Confirmar zoneamento na prefeitura.'], fontes: [] };
 let mock, srv, DADOS;
 const PORTA_MOCK = 9911, PORTA = 8799, BASE = 'http://127.0.0.1:' + PORTA;
 
@@ -30,6 +33,7 @@ before(async () => {
     let b = ''; req.on('data', c => b += c); req.on('end', () => {
       const body = JSON.parse(b || '{}'); recebidos.push({ headers: req.headers, body });
       if (body.stream) {
+        if (body.tools?.some(t => t.name === 'entregar_pesquisa')) return sseAnthropic(res, [{ type: 'tool_use', id: 'toolu_p', name: 'entregar_pesquisa', input: PESQUISA_OK }], 'tool_use');
         if (body.tools) return sseAnthropic(res, [{ type: 'text', text: 'Simulando o cenário pedido.' }, { type: 'tool_use', id: 'toolu_1', name: 'simular_cenario', input: { alteracoes: [{ variavel: 'vso', valor: 4 }] } }], 'tool_use');
         return sseAnthropic(res, [{ type: 'text', text: '## Síntese e recomendação\nAprovar com ressalvas.' }], 'end_turn');
       }
@@ -170,4 +174,14 @@ test('LGPD: titular exporta seus dados; exclusão da conta encerra a sessão', a
   assert.equal((await outro.j('/api/conta/excluir', { method: 'POST', body: { senha: c.body.senhaProvisoria } })).status, 200);
   assert.equal((await outro.j('/api/auth/eu')).status, 401);
   assert.equal((await admin.j('/api/estudos')).body.estudos.length, 1, 'estudos da empresa continuam');
+});
+
+test('pesquisa do endereço: busca com ferramenta de entrega e devolve o resultado por SSE', async () => {
+  const r = await admin('/api/ai/pesquisa', { method: 'POST', body: { endereco: 'Av. Paulista, 1000, São Paulo, SP', contexto: { empreendimento: {} } } });
+  assert.equal(r.status, 200);
+  const ev = await lerSSE(r), fim = ev.find(e => e.t === 'done');
+  assert.ok(fim, JSON.stringify(ev)); assert.equal(fim.dados.terreno.zona, 'ZR-4'); assert.equal(fim.dados.mercado.cub_m2, 2900);
+  const pedido = recebidos.at(-1).body;
+  assert.ok(pedido.tools.some(t => t.name === 'web_search') && pedido.tools.some(t => t.name === 'entregar_pesquisa' && t.strict));
+  assert.equal((await cliente()('/api/ai/pesquisa', { method: 'POST', body: {} })).status, 401);
 });

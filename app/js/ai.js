@@ -428,6 +428,106 @@ function ExtracaoModal({ ctx, onClose }) {
   <//>`;
 }
 
+/* ============================ preenchimento automático pelo endereço ============================ */
+// [chave no estudo, rótulo, leitura no resultado da IA]
+const CAMPOS_PESQ = [
+  ['area', 'Área do terreno (m²)', d => d.terreno.area_m2], ['lote', 'Descrição do lote', d => d.terreno.lote], ['zona', 'Zoneamento', d => d.terreno.zona],
+  ['ca', 'Coef. de aproveitamento', d => d.terreno.ca], ['to', 'Taxa de ocupação (%)', d => d.terreno.to_pct], ['gabarito', 'Gabarito (m)', d => d.terreno.gabarito_m],
+  ['classe', 'Classificação', d => d.terreno.classe === 'indefinida' ? null : d.terreno.classe],
+  ['renda', 'Renda média (R$ mil)', d => d.mercado.renda_mil], ['demanda', 'Demanda (domicílios/ano)', d => d.mercado.demanda_anual],
+  ['perfil', 'Perfil local', d => d.mercado.perfil], ['perfilDesc', 'Descrição do perfil', d => d.mercado.perfil_desc], ['cub', 'CUB (R$/m²)', d => d.mercado.cub_m2]
+];
+const vazio = v => v == null || v === '' || v === 0;
+// Atualiza itens com o mesmo nome e acrescenta os novos.
+function mesclar(lista, novos, novo, atualiza) {
+  const l = lista.slice();
+  novos.forEach(x => { const j = l.findIndex(y => norm(y.nome) === norm(x.nome)); if (j >= 0) l[j] = { ...l[j], ...atualiza(x) }; else l.push(novo(x)); });
+  return l;
+}
+function PesquisaModal({ ctx, onClose }) {
+  const ref = useRef(ctx); ref.current = ctx;
+  const { st, ai } = ctx; const E = st.estudo;
+  const [fase, setFase] = useState('inicio'), [log, setLog] = useState([]), [res, setRes] = useState(null), [sel, setSel] = useState({}), [erroMsg, setErro] = useState('');
+  const acRef = useRef(null); useEffect(() => () => acRef.current?.abort(), []);
+  const passo = m => setLog(l => l.concat([m]));
+  const rodar = async () => {
+    setErro(''); setLog([]); setFase('dados'); passo('Localizando o endereço e consultando IBGE, SINAPI, Banco Central, altimetria e entorno…');
+    // o entorno (OpenStreetMap) pode demorar: a IA começa assim que o endereço e o IBGE chegam, e o mapa termina em paralelo
+    let acabou = false; ref.current.carregarReais(false, E.endereco).finally(() => { acabou = true; });
+    const pronto = () => { const r = ref.current.real; return r.geo?.q === E.endereco && (r.ibge || r.sinapi || r.elev); };
+    // se outra busca já estava em andamento, carregarReais volta na hora: espera ela terminar
+    while (!pronto() && (!acabou || ref.current.status.busy)) await sleep(300);
+    await sleep(80);
+    if (ref.current.real.geo?.q !== E.endereco) { setErro('O endereço não foi encontrado no mapa. Confira rua, número, cidade e UF.'); setFase('inicio'); return; }
+    passo('Dados públicos atualizados.');
+    if (!ai?.ai) { setFase('fim'); return; }
+    setFase('ia'); passo('A IA está pesquisando zoneamento, CUB, renda, concorrentes e licenças na internet…');
+    const { st: s, M, real } = ref.current, c = contextoIA(s, M, real);
+    const contexto = { empreendimento: c.empreendimento, dadosReais: c.dadosReais, concorrentesAtuais: s.concs.map(x => x.nome),
+      listasAtuais: { infraestrutura: s.listas.infra.map(x => x.nome), restricoes: s.listas.restricoes.map(x => x.nome), licencas: s.listas.licencas.map(x => x.nome) } };
+    acRef.current = new AbortController();
+    try {
+      let nBuscas = 0;
+      const fim = await AI.stream('/api/ai/pesquisa', { endereco: s.estudo.endereco, contexto }, ev => {
+        if (ev.t === 'search') { nBuscas++; passo('Busca ' + nBuscas + (ev.q ? ': ' + ev.q : '…')); }
+        else if (ev.t === 'writing') passo('Organizando o resultado…');
+      }, acRef.current.signal);
+      const d = fim.dados, cur = ref.current.st.estudo, s2 = {};
+      // marca por padrão só o que está vazio no estudo; o que o analista já digitou fica como está
+      CAMPOS_PESQ.forEach(([k, , f]) => { const v = f(d); if (!vazio(v) && String(v) !== String(cur[k])) s2['c:' + k] = vazio(cur[k]) || (k === 'classe' && cur.classe === 'urbana'); });
+      ['concorrentes', 'infraestrutura', 'restricoes', 'licencas', 'riscos_mercado'].forEach(k => d[k].forEach((_, i) => { s2[k + ':' + i] = true; }));
+      if (d.alertas.length) s2.alertas = true;
+      setRes(d); setSel(s2); setFase('revisao');
+    } catch (e) { if (e.name !== 'AbortError') { setErro(e.message); setFase('inicio'); } }
+  };
+  useEffect(() => { if (E.endereco && E.endereco.trim().length > 5) rodar(); }, []);
+  const aplicar = () => {
+    const d = res;
+    ref.current.replaceSt(s => {
+      const E2 = { ...s.estudo };
+      CAMPOS_PESQ.forEach(([k, , f]) => { if (sel['c:' + k]) E2[k] = f(d); });
+      if (sel['c:cub'] && d.mercado.cub_fonte) E2.cubFonte = d.mercado.cub_fonte;
+      const esc = k => d[k].filter((_, i) => sel[k + ':' + i]);
+      const L = s.listas;
+      const infra = mesclar(L.infra, esc('infraestrutura'), x => ({ id: uid(), nome: x.nome, status: x.situacao, pct: x.pct ?? '', k: x.nivel }), x => ({ status: x.situacao, pct: x.pct ?? '', k: x.nivel }));
+      const restricoes = mesclar(L.restricoes, esc('restricoes'), x => it('', x.nome, x.orgao, x.nivel, x.situacao, { desc: x.descricao }), x => ({ k: x.nivel, status: x.situacao, ...(x.orgao ? { fonte: x.orgao } : {}) }));
+      const licencas = mesclar(L.licencas, esc('licencas'), x => it('', x.nome, x.orgao, x.nivel, x.situacao, { prazo: x.prazo_dias ?? 30 }), x => ({ k: x.nivel, status: x.situacao, ...(x.prazo_dias ? { prazo: x.prazo_dias } : {}) }));
+      const riscosMercado = L.riscosMercado.concat(esc('riscos_mercado').map(x => ({ id: uid(), t: x.texto, v: x.valor, k: x.nivel })));
+      const pareceres = sel.alertas ? L.pareceres.concat(d.alertas.map(a => ({ id: uid(), t: a, v: 'pesquisa do endereço', k: 'at' }))) : L.pareceres;
+      const concs = s.concs.concat(esc('concorrentes').map(({ fonte, ...c }) => ({ id: uid(), ...c })));
+      return { ...s, estudo: E2, concs, listas: { ...L, infra, restricoes, licencas, riscosMercado, pareceres } };
+    });
+    toast('Estudo preenchido a partir do endereço (Ctrl+Z desfaz).');
+    onClose();
+  };
+  const tg = k => setSel(s => ({ ...s, [k]: !s[k] }));
+  const nSel = Object.values(sel).filter(Boolean).length;
+  const ocupado = fase === 'dados' || fase === 'ia';
+  const grupo = (k, titulo, linha) => res[k].length ? html`<div><h3 style=${{ margin: '6px 0' }}>${titulo}</h3>${res[k].map((x, i) => html`<label key=${i} className="check"><input type="checkbox" checked=${!!sel[k + ':' + i]} onChange=${() => tg(k + ':' + i)} />${linha(x)}</label>`)}</div>` : null;
+  const footer = fase === 'revisao' ? html`<button className="btn" onClick=${onClose}>Cancelar</button><button className="btn g" disabled=${!nSel} onClick=${aplicar}>Aplicar ${nSel} item(ns) ao estudo</button>`
+    : fase === 'fim' ? html`<button className="btn g" onClick=${onClose}>Fechar</button>`
+    : html`<button className="btn" onClick=${onClose}>${ocupado ? 'Cancelar' : 'Fechar'}</button><button className="btn ia" disabled=${ocupado || !E.endereco} onClick=${rodar}>${ocupado ? 'Pesquisando…' : 'Pesquisar endereço'}</button>`;
+  return html`<${Modal} title="Preencher pelo endereço" icon="ia" lg=${!!res} onClose=${onClose} footer=${footer}>
+    ${!res ? html`<p className="sub">Com o endereço, o PREDIC consulta os dados públicos e a IA pesquisa na internet zoneamento (CA, TO, gabarito), CUB, renda, demanda, concorrentes, infraestrutura, restrições e licenças. Você revisa e escolhe o que aplicar.</p>
+      <div className="kv"><span>Endereço</span><b style=${{ fontFamily: 'var(--sans)' }}>${E.endereco || 'não informado: preencha o campo Endereço primeiro'}</b></div>
+      ${erroMsg ? html`<div className="alert cr">${erroMsg}</div>` : null}
+      ${log.length ? html`<ul className="sub" style=${{ paddingLeft: 18, maxHeight: 220, overflowY: 'auto' }}>${log.map((l, i) => html`<li key=${i}>${l}</li>`)}</ul>` : null}
+      ${fase === 'ia' ? html`<div style=${{ display: 'flex', gap: 10, alignItems: 'center' }}><span className="spin ia"></span><span className="sub">A pesquisa leva de 1 a 4 minutos.</span></div>` : null}
+      ${fase === 'fim' ? html`<div className="alert ok">Mapa, IBGE, SINAPI, altimetria e entorno atualizados.</div><${IASemAcesso} ai=${ai} compacto=${true} />` : null}`
+    : html`<div className="alert na">${res.resumo}</div>
+      ${res.alertas.length ? html`<label className="check"><input type="checkbox" checked=${!!sel.alertas} onChange=${() => tg('alertas')} /><div><b>A confirmar</b> <span className="sub">(adicionar ao parecer jurídico)</span><ul style=${{ paddingLeft: 18, marginTop: 4 }}>${res.alertas.map((a, i) => html`<li key=${i}>${a}</li>`)}</ul></div></label>` : null}
+      ${CAMPOS_PESQ.some(([k]) => ('c:' + k) in sel) ? html`<div><h3 style=${{ margin: '6px 0' }}>Dados do terreno e do mercado</h3>${CAMPOS_PESQ.filter(([k]) => ('c:' + k) in sel).map(([k, l, f]) => html`<label key=${k} className="check"><input type="checkbox" checked=${!!sel['c:' + k]} onChange=${() => tg('c:' + k)} /><div style=${{ flex: 1 }}>${l}<div className="sub">atual: ${vazio(E[k]) ? '—' : String(E[k])} → <strong style=${{ color: 'var(--ink)' }}>${String(f(res))}</strong></div></div></label>`)}
+        <p className="note">${res.terreno.fonte}${res.mercado.cub_fonte ? ' · CUB: ' + res.mercado.cub_fonte : ''}${res.mercado.renda_fonte ? ' · renda: ' + res.mercado.renda_fonte : ''}${res.mercado.demanda_metodo ? ' · demanda: ' + res.mercado.demanda_metodo : ''}</p></div>` : null}
+      ${grupo('concorrentes', 'Concorrentes', c => html`<div style=${{ flex: 1 }}>${c.nome} <span className="sub">· ${c.tipo} · ${c.padrao} · ${c.fonte}</span></div><span className="mono" style=${{ fontSize: 11 }}>${c.m2 ? mil(c.m2) + '/m²' : '—'}${c.estoque ? ' · ' + c.estoque + ' un.' : ''}</span>`)}
+      ${grupo('infraestrutura', 'Infraestrutura', x => html`<div style=${{ flex: 1 }}>${x.nome}<div className="sub">${x.situacao}</div></div><${Pill} k=${x.nivel}>${NIVTXT[x.nivel]}<//>`)}
+      ${grupo('restricoes', 'Restrições e órgãos', x => html`<div style=${{ flex: 1 }}>${x.nome} <span className="sub">· ${x.orgao}</span><div className="sub">${x.situacao}</div></div><${Pill} k=${x.nivel}>${NIVTXT[x.nivel]}<//>`)}
+      ${grupo('licencas', 'Licenciamento', x => html`<div style=${{ flex: 1 }}>${x.nome} <span className="sub">· ${x.orgao}${x.prazo_dias ? ' · ' + x.prazo_dias + ' dias' : ''}</span><div className="sub">${x.situacao}</div></div><${Pill} k=${x.nivel}>${NIVTXT[x.nivel]}<//>`)}
+      ${grupo('riscos_mercado', 'Riscos de mercado', x => html`<div style=${{ flex: 1 }}>${x.texto} <span className="sub">· ${x.valor}</span></div><${Pill} k=${x.nivel}>${NIVM[x.nivel]}<//>`)}
+      ${res.fontes.length ? html`<details><summary className="sub">Fontes consultadas (${res.fontes.length})</summary><ul className="sub" style=${{ paddingLeft: 18 }}>${res.fontes.map((f, i) => html`<li key=${i}><a href=${/^https?:\/\//.test(f.url) ? f.url : undefined} target="_blank" rel="noopener noreferrer">${f.titulo || f.url}</a></li>`)}</ul></details>` : null}
+      <p className="note">Dados da internet podem estar desatualizados: confirme zoneamento e restrições na prefeitura antes de decidir. Campos que você já tinha preenchido vêm desmarcados.</p>`}
+  <//>`;
+}
+
 /* ============================ sugestão de produtos ============================ */
 function produtoDaIA(x, base, tetos = TETO_MCMV) {
   const P = novoProduto(x.nome, false);

@@ -366,6 +366,7 @@ function Estudio({ inicial, cfg, ai, perfil, voltar, abrirConfig, sair, recarreg
       ${cp ? html`<${Copilot} ctx=${ctx} onClose=${() => { setCp(false); lsSet('predic3-cp', false); }} fila=${fila} consumir=${() => setFila(null)} />` : null}
     </div>
     ${modalIA === 'extracao' ? html`<${ExtracaoModal} ctx=${ctx} onClose=${() => setModalIA(null)} />` : null}
+    ${modalIA === 'pesquisa' ? html`<${PesquisaModal} ctx=${ctx} onClose=${() => setModalIA(null)} />` : null}
     ${modalIA === 'produtos' ? html`<${ProdutosModal} ctx=${ctx} onClose=${() => setModalIA(null)} />` : null}
     ${conflito ? html`<${ConflitoModal} st=${st} atual=${conflito} recarregar=${recarregar} />` : null}
   </div>`;

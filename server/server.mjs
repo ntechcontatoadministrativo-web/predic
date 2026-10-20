@@ -6,7 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import Anthropic from '@anthropic-ai/sdk';
 import { betaZodOutputFormat } from '@anthropic-ai/sdk/helpers/beta/zod';
-import { SYSTEM_CHAT, SYSTEM_PARECER, CHAT_TOOLS, WEB_SEARCH_TOOL, JSON_TASKS } from './prompts.mjs';
+import { SYSTEM_CHAT, SYSTEM_PARECER, SYSTEM_PESQUISA, CHAT_TOOLS, WEB_SEARCH_TOOL, PESQUISA_TOOL, JSON_TASKS } from './prompts.mjs';
 import { abrirBanco } from './db.mjs';
 import { hashSenha, confereSenha, HASH_FICTICIO, novoToken, hashToken, novoId, senhaProvisoria, validaSenha, emailValido, lerCookie, cookieSessao } from './auth.mjs';
 import { custoUso } from './precos.mjs';
@@ -480,6 +480,41 @@ rota('POST', '/api/ai/json', 'sessao', async (req, res, b, u) => {
   if (r.stop_reason === 'refusal') throw erro(422, 'A IA não pôde processar este pedido.');
   if (r.stop_reason === 'max_tokens' || !r.parsed_output) throw erro(502, 'A resposta da IA veio incompleta. Tente de novo com menos documentos.');
   json(res, 200, { dados: r.parsed_output, usage: r.usage, model: r.model });
+});
+
+// Pesquisa do endereço: a IA busca na web e devolve o resultado pela ferramenta entregar_pesquisa. O progresso vai por SSE.
+rota('POST', '/api/ai/pesquisa', 'sessao', async (req, res, b, u) => {
+  exigeIA(u);
+  const send = sse(res), ac = new AbortController();
+  res.on('close', () => ac.abort());
+  const beat = setInterval(() => res.write(': ping\n\n'), 15000);
+  const tools = (WEB ? [{ ...WEB_SEARCH_TOOL, max_uses: 15 }] : []).concat([PESQUISA_TOOL]);
+  const messages = [{ role: 'user', content: '<estudo>\n' + JSON.stringify(b.contexto ?? {}) + '\n</estudo>\n\nPesquise o endereço "' + String(b.endereco || '').slice(0, 300) + '" e entregue o resultado.' + (WEB ? '' : '\n\nA pesquisa na web está desligada neste servidor: use só o que você sabe e marque como estimativa.') }];
+  try {
+    for (let volta = 0; volta < 6; volta++) {
+      const msg = await comFallback(MODEL, async fb => {
+        const stream = client.beta.messages.stream({ model: MODEL, ...fb, max_tokens: 32000, thinking: { type: 'adaptive' }, output_config: { effort: 'medium' }, system: SYSTEM_PESQUISA, tools, messages }, { signal: ac.signal });
+        for await (const ev of stream) {
+          if (ev.type !== 'content_block_start') continue;
+          if (ev.content_block.type === 'server_tool_use') send({ t: 'search', q: ev.content_block.input?.query || '' });
+          else if (ev.content_block.type === 'web_search_tool_result') send({ t: 'search_done', n: Array.isArray(ev.content_block.content) ? ev.content_block.content.length : 0 });
+          else if (ev.content_block.type === 'tool_use') send({ t: 'writing' });
+        }
+        return stream.finalMessage();
+      });
+      registrarUso(u, 'pesquisa', msg.model, msg.usage);
+      const entrega = msg.content.find(x => x.type === 'tool_use' && x.name === PESQUISA_TOOL.name);
+      if (entrega) { registrar(req, u, 'pesquisa_endereco', String(b.endereco || '').slice(0, 200)); send({ t: 'done', dados: entrega.input }); return; }
+      if (msg.stop_reason === 'refusal') throw erro(422, 'A IA não pôde processar este pedido.');
+      if (msg.stop_reason === 'max_tokens') throw erro(502, 'A resposta da IA veio incompleta. Tente de novo.');
+      messages.push({ role: 'assistant', content: msg.content });
+      // pause_turn: a pesquisa continua de onde parou; qualquer outro fim sem entrega recebe um lembrete
+      if (msg.stop_reason !== 'pause_turn') messages.push({ role: 'user', content: 'Entregue agora o que já levantou chamando entregar_pesquisa.' });
+    }
+    throw erro(502, 'A pesquisa não terminou. Tente de novo.');
+  } catch (e) {
+    if (!ac.signal.aborted) send({ t: 'error', msg: explain(e)[1] });
+  } finally { clearInterval(beat); res.end(); }
 });
 
 const LIMITES = { '/api/ai/chat': 30 * 1048576, '/api/ai/json': 30 * 1048576, '/api/ai/parecer': 4 * 1048576 };

@@ -42,6 +42,52 @@ export const SYSTEM_PRODUTOS = `${BASE}
 
 Proponha alternativas de produto para o terreno do estudo, coerentes com zoneamento (CA, TO, gabarito), área do terreno, renda e perfil do público, concorrência e programa (mercado ou MCMV). Cada alternativa deve ser diferente das outras de verdade (tipologia, padrão ou densidade), com mix realista de unidades, áreas privativas, preço por m² ancorado na concorrência e custo de obra coerente com o padrão e o SINAPI. O PREDIC vai calcular a viabilidade de cada uma com o motor financeiro; explique o racional em uma ou duas frases.`;
 
+export const SYSTEM_PESQUISA = `${BASE}
+
+O analista informou só o endereço do terreno e quer o estudo preenchido automaticamente. Pesquise na web e levante, para esse endereço e município:
+- zoneamento: zona ou macrozona do lote no plano diretor / lei de uso e ocupação do solo vigente, coeficiente de aproveitamento básico (CA), taxa de ocupação (TO, %) e gabarito ou altura máxima (m); se a lei limita em pavimentos, converta a 3 m por pavimento e diga isso em "fonte";
+- terreno: área e descrição do lote só se aparecerem em fonte pública (anúncio de venda, IPTU, geoportal da prefeitura); senão null;
+- CUB residencial do Sinduscon da UF (padrão R8-N ou o mais próximo, último mês publicado), em R$/m²;
+- renda média domiciliar mensal da região ou do município (Censo 2022/IBGE ou fonte equivalente), em R$ mil;
+- demanda anual estimada de domicílios-alvo na região (diga o método em "demanda_metodo");
+- perfil do público e da vizinhança;
+- até 6 lançamentos ou empreendimentos residenciais à venda num raio de ~3 km, com preço por m², ticket e estoque quando houver fonte;
+- infraestrutura do bairro (água, esgoto, energia, drenagem, pavimentação, fibra óptica);
+- restrições que alcançam o lote (tombamento, cone aeroportuário, APP, terreno de marinha, EIV, polo gerador de tráfego) e etapas de licenciamento do município com prazos típicos em dias;
+- riscos de mercado locais.
+
+Os dados públicos já consultados (IBGE, SINAPI, entorno no OpenStreetMap) chegam em "dadosReais"; use-os e não repita a busca deles. Em listas que já existem no estudo (infraestrutura, restrições, licenças), use exatamente o mesmo nome do item quando o achado for sobre ele. Para cada nível: "ok" regular/baixo, "at" atenção/médio, "cr" crítico/alto, "na" não foi possível verificar.
+
+Não invente: quando não achar um dado com fonte confiável, devolva null (ou lista vazia) e explique em "alertas" o que o analista precisa confirmar. Ao terminar, chame entregar_pesquisa uma única vez com tudo o que levantou.`;
+
+const num_ = { type: ['number', 'null'] }, txt_ = { type: ['string', 'null'] }, niv_ = { type: 'string', enum: ['ok', 'at', 'cr', 'na'] };
+const obj_ = props => ({ type: 'object', properties: props, required: Object.keys(props), additionalProperties: false });
+export const PESQUISA_TOOL = {
+  name: 'entregar_pesquisa',
+  description: 'Entrega o resultado da pesquisa do endereço para preencher o estudo. Chame uma única vez, no fim.',
+  strict: true,
+  input_schema: obj_({
+    resumo: { type: 'string', description: '2 a 4 frases sobre o terreno, a região e o mercado' },
+    terreno: obj_({
+      area_m2: num_, lote: { ...txt_, description: 'descrição curta do lote' }, zona: txt_, ca: { ...num_, description: 'coeficiente de aproveitamento básico' },
+      to_pct: num_, gabarito_m: num_, classe: { type: 'string', enum: ['urbana', 'expansão urbana', 'rural', 'indefinida'] }, fonte: { type: 'string', description: 'lei/fonte do zoneamento e observações' }
+    }),
+    mercado: obj_({
+      renda_mil: { ...num_, description: 'renda média domiciliar mensal em R$ mil' }, renda_fonte: txt_,
+      demanda_anual: { ...num_, description: 'domicílios-alvo por ano' }, demanda_metodo: txt_,
+      perfil: { ...txt_, description: 'curto, ex.: "Classe B"' }, perfil_desc: { ...txt_, description: 'curto, ex.: "famílias, 2 e 3 dorm."' },
+      cub_m2: num_, cub_fonte: { ...txt_, description: 'ex.: "Sinduscon-PA R8-N set/2026"' }
+    }),
+    concorrentes: { type: 'array', items: obj_({ nome: { type: 'string' }, tipo: { type: 'string' }, padrao: { type: 'string' }, m2: { type: 'number', description: 'R$/m², 0 se desconhecido' }, ticket: { type: 'number', description: 'R$ mil, 0 se desconhecido' }, vso: { type: 'number', description: '% a.m., 0 se desconhecido' }, estoque: { type: 'number', description: 'unidades, 0 se desconhecido' }, fonte: { type: 'string' } }) },
+    infraestrutura: { type: 'array', items: obj_({ nome: { type: 'string' }, situacao: { type: 'string' }, pct: num_, nivel: niv_ }) },
+    restricoes: { type: 'array', items: obj_({ nome: { type: 'string' }, orgao: { type: 'string' }, nivel: niv_, situacao: { type: 'string' }, descricao: { type: 'string' } }) },
+    licencas: { type: 'array', items: obj_({ nome: { type: 'string' }, orgao: { type: 'string' }, prazo_dias: num_, nivel: niv_, situacao: { type: 'string' } }) },
+    riscos_mercado: { type: 'array', items: obj_({ texto: { type: 'string' }, valor: { type: 'string' }, nivel: niv_ }) },
+    alertas: { type: 'array', items: { type: 'string' } },
+    fontes: { type: 'array', items: obj_({ titulo: { type: 'string' }, url: { type: 'string' } }) }
+  })
+};
+
 const VARS = ['preco_m2', 'custo_obra_m2', 'vso', 'prazo_obra', 'tma', 'permuta_financeira_pct', 'terreno_dinheiro', 'financiamento_pct', 'juros_financiamento'];
 const VARS_DESC = 'preco_m2: preço médio de venda em R$/m² (reescala todo o mix); custo_obra_m2: R$/m² equivalente; vso: % do estoque vendido por mês; prazo_obra: meses; tma: % a.a.; permuta_financeira_pct: % do VGV pago ao dono do terreno; terreno_dinheiro: R$ pagos em dinheiro pelo terreno; financiamento_pct: % da obra financiada; juros_financiamento: % a.a.';
 const alteracoes = {

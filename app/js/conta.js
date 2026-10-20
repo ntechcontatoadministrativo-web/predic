@@ -326,7 +326,7 @@ function AbaIA({ perfil, setPerfil, adm, ai }) {
   useEffect(() => { SRV.get('/api/uso').then(setU).catch(e => toast(e.message, true)); }, []);
   const salvarCota = async () => { setBusy(true); try { setPerfil(await SRV.patch('/api/empresa', { cota })); toast('Cota atualizada.'); SRV.get('/api/uso').then(setU); } catch (e) { toast(e.message, true); } setBusy(false); };
   const p = u && u.cota > 0 ? Math.min(1, u.gasto / u.cota) : 0;
-  const ROT = { chat: 'Assistente', parecer: 'Parecer técnico', auditoria: 'Auditoria de premissas', extracao: 'Leitura de documentos', produtos: 'Sugestão de produtos' };
+  const ROT = { chat: 'Assistente', parecer: 'Parecer técnico', auditoria: 'Auditoria de premissas', extracao: 'Leitura de documentos', produtos: 'Sugestão de produtos', pesquisa: 'Pesquisa do endereço' };
   return html`<div className="cfg-sec">
     <${SecH} t="Uso da IA neste mês" d=${'Estimativa pelos preços públicos da Anthropic. A cobrança oficial está no Console da Anthropic de quem paga a chave.'} />
     ${!ai?.ai ? html`<${IASemAcesso} ai=${ai} compacto=${true} />` : null}

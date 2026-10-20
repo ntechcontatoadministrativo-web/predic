@@ -9,10 +9,23 @@ function ProdTabs({ ctx }) {
   return html`<div className="seg noprint">${st.produtos.map((P, i) => html`<button key=${P.id} className=${i === M.sel ? 'on' : ''} onClick=${() => set({ prodSel: i })}>${P.nome}</button>`)}</div>`;
 }
 
+// Estudo sem endereço: o primeiro passo é o endereço, que preenche o restante.
+function ComecePeloEndereco({ ctx }) {
+  const [end, setEnd] = useState('');
+  const ir = e => { e.preventDefault(); if (end.trim().length < 6) return; ctx.setE({ endereco: end.trim() }); setTimeout(() => ctx.abrirIA('pesquisa'), 60); };
+  return html`<${Card} title="Comece pelo endereço do terreno" sub="o PREDIC busca mapa, IBGE, SINAPI e entorno, e a IA pesquisa zoneamento, CUB, renda, concorrentes e licenças">
+    <form onSubmit=${ir} style=${{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+      <input className="in box lg" style=${{ flex: '1 1 280px' }} value=${end} onChange=${e => setEnd(e.target.value)} placeholder="Ex.: Av. Paulista, 1000, São Paulo, SP" autoFocus />
+      <button className="btn ia lg" disabled=${end.trim().length < 6}><${Icon} n="ia" s=${15} />Preencher tudo</button>
+    </form>
+  <//>`;
+}
+
 function Painel({ ctx }) {
   const { st, M, set, setProd, real, capas } = ctx; const { R, PR, D, crit } = M; const E = st.estudo; const C = st.comite;
   const capa = capas[PR.id];
   return html`<div className="grid">
+    ${!E.endereco && !st.exemplo ? html`<${ComecePeloEndereco} ctx=${ctx} />` : null}
     <${AjusteRapido} ctx=${ctx} />
     <div className="grid g6">
       <${Kpi} s="VGV" v=${milhoes(R.vgv)} l=${num(D.un) + ' unidades · ' + mil(D.preco) + '/m²'} t="g" />
@@ -99,7 +112,7 @@ function Local({ ctx }) {
   return html`<div className="grid">
     <${Card} title="Terreno" sub="dados do lote · o endereço alimenta mapa, IBGE, SINAPI, altimetria e entorno" right=${html`<button className="btn ia sm noprint" onClick=${() => ctx.abrirIA('extracao')}><${Icon} n="doc" s=${14} />Ler matrícula / zoneamento com IA</button>`}>
       <div className="grid g4">
-        <${Field} label="Endereço completo (rua, número, cidade, UF)" style=${{ gridColumn: 'span 3' }}><div style=${{ display: 'flex', gap: 6 }}><${Txt} className="box" value=${E.endereco} onChange=${v => setE({ endereco: v })} placeholder="Ex.: Av. Paulista, 1000, São Paulo, SP" /><button className="btn pri noprint" disabled=${status.busy} onClick=${localizar}>${status.busy ? 'Buscando…' : 'Localizar'}</button></div><//>
+        <${Field} label="Endereço completo (rua, número, cidade, UF)" style=${{ gridColumn: 'span 3' }}><div style=${{ display: 'flex', gap: 6 }}><${Txt} className="box" value=${E.endereco} onChange=${v => setE({ endereco: v })} placeholder="Ex.: Av. Paulista, 1000, São Paulo, SP" /><button className="btn pri noprint" disabled=${status.busy} onClick=${localizar}>${status.busy ? 'Buscando…' : 'Localizar'}</button><button className="btn ia noprint" disabled=${!E.endereco} title="Busca dados públicos e pesquisa na internet zoneamento, CUB, renda, concorrentes e licenças" onClick=${() => ctx.abrirIA('pesquisa')}><${Icon} n="ia" s=${14} />Preencher tudo</button></div><//>
         <${Field} label="Nome do empreendimento"><${Txt} className="box" value=${E.nome} onChange=${v => setE({ nome: v })} /><//>
         <${Field} label="Descrição do lote" style=${{ gridColumn: 'span 2' }}><${Txt} className="box" value=${E.lote} onChange=${v => setE({ lote: v })} /><//>
         <${Field} label="Matrícula"><${Txt} className="box" value=${E.matricula} onChange=${v => setE({ matricula: v })} /><//>
