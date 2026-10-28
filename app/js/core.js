@@ -42,7 +42,7 @@ const COMITE0 = { tirMin: 18, margemMin: 15, expoMax: 25, paybackMax: 42 };
 const GLOSS = { VGV: 'Valor Geral de Vendas: soma do preço de todas as unidades à venda.', CTE: 'Custo Total do Empreendimento: terreno, obra, projetos, impostos, marketing, corretagem e juros.', MARGEM: 'Lucro do incorporador dividido pelo VGV.', 'EXPOSIÇÃO': 'Maior volume de dinheiro próprio que o incorporador precisa colocar antes de as vendas pagarem a conta.', PAYBACK: 'Mês em que o dinheiro colocado no projeto volta ao caixa.', RCE: 'Resultado sobre capital exposto: lucro para cada R$ 1 de dinheiro próprio no pior momento do caixa.', TIR: 'Taxa Interna de Retorno anual do projeto. Deve superar a TMA e a meta do comitê.', VPL: 'Valor Presente Líquido descontado pela TMA. Positivo = rende mais que a TMA.', TMA: 'Taxa Mínima de Atratividade: rendimento mínimo aceito pelo investidor.', VSO: 'Velocidade sobre oferta: % do estoque vendido por mês.', 'ABSORÇÃO': 'Meses para o mercado vender todo o estoque atual.', VELOCIDADE: 'Unidades vendidas por mês na região (estoque × VSO).', DEMANDA: 'Domicílios da região com perfil e renda para comprar o produto, por ano.', SINAPI: 'Custo médio do m² construído calculado pelo IBGE/Caixa para a UF (sem BDI, terreno, projetos e equipamentos).', SELIC: 'Taxa básica de juros definida pelo Copom (meta).', INCC: 'Índice Nacional de Custo da Construção (FGV), acumulado em 12 meses.' };
 const ajuda = t => GLOSS[String(t || '').toUpperCase().split(/[\s/·]+/)[0]] || '';
 
-const SECS = [['painel', 'Painel geral'], ['local', 'Localização / Urbanização'], ['legis', 'Legislação / Legalização'], ['mercado', 'Estudo de mercado'], ['produto', 'Característica do produto'], ['orcamento', 'Planejamento preliminar'], ['financeiro', 'Viabilidade econômico-financeira'], ['sensibilidade', 'Matriz de sensibilidade'], ['conclusao', 'Recomendações finais']];
+const SECS = [['painel', 'Painel geral'], ['local', 'Localização / Urbanização'], ['legis', 'Legislação / Legalização'], ['mercado', 'Estudo de mercado'], ['dados', 'Base de dados e padrões'], ['produto', 'Característica do produto'], ['orcamento', 'Planejamento preliminar'], ['financeiro', 'Viabilidade econômico-financeira'], ['sensibilidade', 'Matriz de sensibilidade'], ['conclusao', 'Recomendações finais']];
 const tk = k => ({ ok: 'g', at: 'y', cr: 'r', na: 'n' })[k];
 
 /* ============================ motor financeiro ============================ */
@@ -228,7 +228,7 @@ function estudoExemplo() {
       ],
       condicionantes: [{ id: uid(), t: 'Lançamento condicionado a 25% de vendas em pré-lançamento para liberar a ordem de serviço.' }]
     },
-    notas: '', real: {}, img: { provider: 'pollinations', estilo: 'contemporâneo', vista: 'fachada', formato: '16:9', extra: '' }
+    bases: [], basesFiltro: {}, notas: '', real: {}, img: { provider: 'pollinations', estilo: 'contemporâneo', vista: 'fachada', formato: '16:9', extra: '' }
   };
 }
 function estudoVazio() {

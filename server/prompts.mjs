@@ -14,6 +14,7 @@ Você está no painel lateral de conversa. Use as ferramentas quando elas resolv
 - buscar_meta para descobrir o valor de uma premissa que atinge uma TIR, margem ou VPL alvo;
 - aplicar_alteracoes, adicionar_registros, adicionar_concorrentes e registrar_parecer alteram o estudo; o usuário confirma cada uma antes de valer, então só use quando ele pedir ou quando a mudança for claramente a próxima etapa do que ele pediu;
 - navegar para levar o usuário à seção relevante;
+- quando houver mercado.baseDeDados no contexto, ele resume planilhas de mercado importadas pelo usuário (medianas, grupos, tendência, modelo hedônico de preço, comparáveis e padrões encontrados): use esses números para sustentar preço e VSO e cite que vêm da base importada;
 - web_search (quando disponível) para pesquisar lançamentos, preços de concorrentes, notícias do mercado local e legislação. Cite as fontes.
 
 Respostas curtas por padrão (até ~200 palavras), em Markdown simples: parágrafos curtos, listas e tabelas pequenas quando ajudarem. Ao recomendar uma mudança de premissa, mostre o efeito simulado na TIR, margem e exposição.`;
@@ -180,7 +181,7 @@ export const CHAT_TOOLS = [
   {
     name: 'navegar',
     description: 'Abre uma seção do estudo na tela do usuário.',
-    input_schema: { type: 'object', properties: { secao: { type: 'string', enum: ['painel', 'local', 'legis', 'mercado', 'produto', 'orcamento', 'financeiro', 'sensibilidade', 'conclusao'] } }, required: ['secao'], additionalProperties: false }
+    input_schema: { type: 'object', properties: { secao: { type: 'string', enum: ['painel', 'local', 'legis', 'mercado', 'dados', 'produto', 'orcamento', 'financeiro', 'sensibilidade', 'conclusao'] } }, required: ['secao'], additionalProperties: false }
   }
 ].map(t => ({ ...t, eager_input_streaming: true }));
 

@@ -10,7 +10,7 @@ const lsGet = (k, d) => { try { const v = localStorage.getItem(k); return v == n
 const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } };
 function normalizar(d) {
   const b = estudoExemplo();
-  return { ...b, ...d, v: 2, comite: { ...COMITE0, ...d.comite }, cenarios: d.cenarios || clone(SCEN0), listas: { ...b.listas, ...d.listas }, img: { ...b.img, ...d.img }, real: d.real || {}, ia: d.ia || {}, sec: d.sec || 'painel', prodSel: d.prodSel || 0 };
+  return { ...b, ...d, v: 2, comite: { ...COMITE0, ...d.comite }, cenarios: d.cenarios || clone(SCEN0), listas: { ...b.listas, ...d.listas }, bases: Array.isArray(d.bases) ? d.bases : [], basesFiltro: d.basesFiltro || {}, img: { ...b.img, ...d.img }, real: d.real || {}, ia: d.ia || {}, sec: d.sec || 'painel', prodSel: d.prodSel || 0 };
 }
 const resumoEstudo = st => {
   let q = null; try { q = quick(st); } catch (e) { }
@@ -283,7 +283,7 @@ function Estudio({ inicial, cfg, ai, perfil, voltar, abrirConfig, sair, recarreg
 
   // planilha e backup
   const fileRef = useRef();
-  const importar = e => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; f.arrayBuffer().then(buf => { try { const r = importarPlanilha(buf, stRef.current); setSt(s => ({ ...r.st, id: s.id, criado: s.criado, ia: s.ia })); toast('Planilha importada' + (r.avisos.length ? ' · atenção: ' + r.avisos.join('; ') : '.'), r.avisos.length > 0); setTimeout(() => carregarReais(false, r.st.estudo.endereco), 50); } catch (err) { toast('Não foi possível importar: ' + err.message, true); } }); };
+  const importar = e => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; f.arrayBuffer().then(buf => { try { const r = importarPlanilha(buf, stRef.current); setSt(s => ({ ...r.st, id: s.id, criado: s.criado, ia: s.ia })); toast('Planilha importada' + (r.avisos.length ? ' · atenção: ' + r.avisos.join('; ') : '.'), r.avisos.length > 0); setTimeout(() => carregarReais(false, r.st.estudo.endereco), 50); } catch (err) { toast('Não foi possível importar: ' + err.message + (/Produtos/.test(err.message) ? ' Para planilhas de pesquisa de mercado, use a seção Base de dados e padrões.' : ''), true); } }); };
   const exportar = () => { try { exportarPlanilha(stRef.current); toast('Planilha baixada com todos os dados do estudo.'); } catch (e) { toast(e.message, true); } };
   const imprimir = () => {
     const tema = document.documentElement.dataset.theme; document.documentElement.dataset.theme = 'light';
@@ -294,7 +294,7 @@ function Estudio({ inicial, cfg, ai, perfil, voltar, abrirConfig, sair, recarreg
   };
 
   const idx = Math.max(0, SECS.findIndex(s => s[0] === st.sec));
-  const VIEWS = { painel: Painel, local: Local, legis: Legis, mercado: Mercado, produto: Produto, orcamento: Orcamento, financeiro: Financeiro, sensibilidade: Sensib, conclusao: Conclusao };
+  const VIEWS = { painel: Painel, local: Local, legis: Legis, mercado: Mercado, dados: BaseDados, produto: Produto, orcamento: Orcamento, financeiro: Financeiro, sensibilidade: Sensib, conclusao: Conclusao };
   const lista = printAll ? SECS : [SECS[idx]];
   const porProduto = s => !['local', 'legis', 'mercado'].includes(s);
   const ir = k => { set({ sec: k }); setMenu(false); window.scrollTo(0, 0); };

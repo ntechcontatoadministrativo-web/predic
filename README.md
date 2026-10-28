@@ -27,6 +27,17 @@ Todas as alterações feitas pela IA podem ser desfeitas com **Ctrl+Z**.
 
 A chave da API fica só no servidor; o navegador nunca a vê. O modelo padrão é `claude-opus-5-5` (troque em `PREDIC_MODEL`). Quando os filtros de segurança do modelo recusam um pedido por engano, o servidor refaz a chamada automaticamente no modelo de reserva recomendado pela Anthropic (`fallbacks: "default"`).
 
+## Base de dados e padrões
+
+Seção 05 do estudo. Importe qualquer planilha de mercado (.xlsx, .xls, .ods, .csv ou dados colados do Excel): pesquisa de campo, tabela de vendas, book de concorrentes, exportação de portal. Vários arquivos e várias abas se somam na mesma análise (até 15 mil linhas por estudo).
+
+- **Mapeamento automático**: as colunas são reconhecidas pelo título e pelo conteúdo (empreendimento, bairro, tipologia, dormitórios, vagas, padrão, área, preço, R$/m², data, VSO, unidades totais/vendidas, estoque, latitude/longitude). Ajuste em *Colunas*. Números em qualquer formato (`R$ 1.150.000,00`, `850 mil`, `4,1%`), preços em R$ mil e VSO em fração são convertidos; R$/m², ticket, estoque e VSO são calculados quando faltam.
+- **Padrões**: estatística descritiva, outliers (mediana e desvio absoluto), efeito escala área × R$/m², tendência anual comparada ao IPCA e ao INCC, faixa de ticket mais líquida, tipologias com muita venda e pouca oferta, efeito do preço na VSO, gradiente de preço pela distância ao terreno e matriz de correlações.
+- **Modelo de preço (hedônico)**: regressão do log do R$/m² sobre área, dormitórios, vagas, padrão, bairro, data e distância. Mostra quanto cada atributo agrega e prevê o preço de cada tipologia do mix com faixa de 80%.
+- **Comparáveis**: os registros mais parecidos com o produto (área, dormitórios, padrão, distância, recência).
+- **Aplicação no estudo**: preços do mix, VSO, concorrentes e alertas de risco num clique (Ctrl+Z desfaz); exportação da análise em .xlsx; botão *Interpretar com IA*, e o assistente passa a enxergar o resumo da base.
+- **Filtros** por bairro, tipologia, padrão, período e raio do terreno. *Modelo de planilha* e *Base de exemplo* ajudam a começar.
+
 ## Outros recursos
 
 - **Biblioteca de estudos**: vários estudos, com busca, duplicação, backup (.json) e importação/exportação de planilha (.xlsx).
@@ -59,9 +70,11 @@ Coloque o servidor atrás de HTTPS (Caddy, Nginx ou o balanceador do provedor) e
 app/            front-end (React + htm, sem etapa de compilação)
   js/core.js      motor financeiro, cenários, sensibilidade, modelo calculado
   js/ia-core.js   simulação, busca de meta e contexto do estudo para a IA
+  js/padroes.js   planilhas livres, mapeamento de colunas e motor de padrões (estatística, regressão, comparáveis)
+  js/padroes-ui.js seção Base de dados e padrões (importação, gráficos, mapa, aplicação ao estudo)
   js/data.js      APIs públicas, IndexedDB, imagens, planilhas
   js/ui.js        componentes, gráficos, mapa, Markdown
-  js/sections.js  as nove seções do estudo
+  js/sections.js  as seções do estudo
   js/ai.js        assistente, leitura de documentos, produtos, parecer, auditoria
   js/app.js       biblioteca, configurações, desfazer, relatório
 server/         servidor Node: arquivos estáticos + ponte segura com a API da Anthropic
