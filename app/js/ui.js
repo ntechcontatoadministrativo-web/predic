@@ -57,22 +57,29 @@ const ICONS = {
   eye: 'M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z',
   briefcase: 'M3 8h18v12H3zM8 8V5h8v3M3 13h18'
 };
-// Marca do PREDIC: monograma "P" em ouro sobre placa noturna; a curva do P abriga barras ascendentes (viabilidade que sobe).
-const Marca = ({ s = 32, className = '', style }) => html`<svg className=${'marca ' + className} viewBox="0 0 64 64" width=${s} height=${s} style=${style} aria-hidden="true">
+// Marca do PREDIC: ícone de app — monograma "P" branco sobre azul do sistema; a curva do P abriga barras ascendentes (viabilidade que sobe).
+// ids únicos por instância: um gradiente dentro de um elemento oculto (barra do celular) não pinta as outras cópias
+function Marca({ s = 32, className = '', style }) {
+  const id = React.useId().replace(/:/g, '');
+  return html`<svg className=${'marca ' + className} viewBox="0 0 64 64" width=${s} height=${s} style=${style} aria-hidden="true">
   <defs>
-    <linearGradient id="pm-bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#1C2847" /><stop offset="1" stopColor="#060A14" /></linearGradient>
-    <linearGradient id="pm-au" x1="0.1" y1="0" x2="0.9" y2="1"><stop offset="0" stopColor="#F6E4AE" /><stop offset=".45" stopColor="#D9B46C" /><stop offset="1" stopColor="#9A7134" /></linearGradient>
-    <linearGradient id="pm-em" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stopColor="#0E9F6E" /><stop offset="1" stopColor="#5EEAB0" /></linearGradient>
+    <linearGradient id=${id + "b"} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#3B9BFF" /><stop offset="1" stopColor="#0051D5" /></linearGradient>
+    <linearGradient id=${id + "s"} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#fff" stopOpacity=".28" /><stop offset=".5" stopColor="#fff" stopOpacity="0" /></linearGradient>
   </defs>
-  <rect width="64" height="64" rx="16" fill="url(#pm-bg)" />
-  <rect x="1" y="1" width="62" height="62" rx="15" fill="none" stroke="url(#pm-au)" strokeOpacity=".5" strokeWidth="1.2" />
-  <path d="M21 49V18.5a3 3 0 0 1 3-3h10.5a11.75 11.75 0 0 1 0 23.5H27.5" fill="none" stroke="url(#pm-au)" strokeWidth="5.6" strokeLinecap="round" strokeLinejoin="round" />
-  <rect x="28" y="28.5" width="3.4" height="5.5" rx="1" fill="url(#pm-em)" />
-  <rect x="33.2" y="24.5" width="3.4" height="9.5" rx="1" fill="url(#pm-em)" />
-  <path d="M47.5 9.5l1.1 2.5 2.5 1.1-2.5 1.1-1.1 2.5-1.1-2.5-2.5-1.1 2.5-1.1z" fill="#F6E4AE" />
+  <rect width="64" height="64" rx="14.5" fill=${"url(#" + id + "b)"} />
+  <rect width="64" height="64" rx="14.5" fill=${"url(#" + id + "s)"} />
+  <path d="M22 48V19.5a3 3 0 0 1 3-3h9.5a11.25 11.25 0 0 1 0 22.5H28" fill="none" stroke="#fff" strokeWidth="5.4" strokeLinecap="round" strokeLinejoin="round" />
+  <rect x="28.6" y="29" width="3.6" height="5" rx="1.8" fill="#fff" fillOpacity=".75" />
+  <rect x="34" y="24.6" width="3.6" height="9.4" rx="1.8" fill="#fff" />
 </svg>`;
+}
 const Logo = ({ s = 30, sub, claro }) => html`<div className=${'logo' + (claro ? ' claro' : '')}><${Marca} s=${s} /><div className="lw"><b>PREDIC</b>${sub ? html`<small>${sub}</small>` : null}</div></div>`;
 const Icon = ({ n, s = 16, style, className = '' }) => html`<svg className=${'ic ' + className} viewBox="0 0 24 24" style=${{ width: s, height: s, ...style }} aria-hidden="true"><path d=${ICONS[n] || ''} /></svg>`;
+
+// Sliders: o WebKit não pinta o trecho já percorrido; --p alimenta o gradiente da trilha no CSS.
+const pintarRange = el => { const mn = +el.min || 0, mx = el.max === '' ? 100 : +el.max; el.style.setProperty('--p', ((el.value - mn) / ((mx - mn) || 1) * 100) + '%'); };
+document.addEventListener('input', e => { if (e.target.type === 'range') pintarRange(e.target); });
+new MutationObserver(() => document.querySelectorAll('input[type=range]').forEach(pintarRange)).observe(document.documentElement, { childList: true, subtree: true, characterData: true });
 
 /* ============================ campos ============================ */
 function Num({ value, onChange, min, max, step, className = '', dec, style, placeholder, disabled }) {
@@ -224,9 +231,9 @@ function MapaLote({ lat, lon, pois, raio = 1000, small }) {
     if (!window.L || !ref.current || !temGeo) return;
     if (!m.current) { m.current = L.map(ref.current, { scrollWheelZoom: false, attributionControl: true }); L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(m.current); layer.current = L.layerGroup().addTo(m.current); }
     const g = layer.current; g.clearLayers();
-    L.circle([lat, lon], { radius: raio, color: '#2BB673', weight: 1.5, fillOpacity: 0.05 }).addTo(g);
+    L.circle([lat, lon], { radius: raio, color: '#0A84FF', weight: 1.5, fillOpacity: 0.06 }).addTo(g);
     if (!small && pois) pois.itens.forEach(p => { const c = API.POI_CATS.find(x => x.k === p.cat); if (c) L.circleMarker([p.lat, p.lon], { radius: 4.5, color: '#fff', weight: 1.5, fillColor: c.cor, fillOpacity: 1 }).bindTooltip((p.nome || c.l) + ' · ' + num(p.d) + ' m').addTo(g); });
-    L.circleMarker([lat, lon], { radius: 8, color: '#fff', weight: 2.5, fillColor: '#1D1C27', fillOpacity: 1 }).bindTooltip('Terreno').addTo(g);
+    L.circleMarker([lat, lon], { radius: 8, color: '#fff', weight: 2.5, fillColor: '#0A84FF', fillOpacity: 1 }).bindTooltip('Terreno').addTo(g);
     m.current.setView([lat, lon], small ? 14 : 15);
     const t = setTimeout(() => m.current && m.current.invalidateSize(), 60);
     return () => clearTimeout(t);

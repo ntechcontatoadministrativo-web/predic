@@ -62,14 +62,14 @@ const API = {
     return { lote: e[0], media, min: Math.min(...viz), max: Math.max(...viz) };
   },
   POI_CATS: [
-    { k: 'transp', l: 'Transporte público', d: 'pontos de ônibus e estações', osm: ['node["highway"="bus_stop"]', 'nwr["public_transport"="station"]', 'nwr["railway"~"station|halt|tram_stop"]'], nm: ['bus stop', 'bus station'], cor: '#3D6FB6' },
-    { k: 'escola', l: 'Escolas', d: 'educação infantil ao ensino médio', osm: ['nwr["amenity"~"^(school|kindergarten)$"]'], nm: ['school', 'kindergarten'], cor: '#D89B26' },
-    { k: 'saude', l: 'Saúde', d: 'hospitais, clínicas e UBS', osm: ['nwr["amenity"~"^(hospital|clinic|doctors)$"]', 'nwr["healthcare"~"^(hospital|clinic|centre)$"]'], nm: ['hospital', 'clinic'], cor: '#E0644A' },
-    { k: 'farm', l: 'Farmácias', d: 'redes e independentes', osm: ['nwr["amenity"="pharmacy"]'], nm: ['pharmacy'], cor: '#7A6CBE' },
-    { k: 'merc', l: 'Supermercados', d: 'supermercados e atacarejos', osm: ['nwr["shop"~"^(supermarket|wholesale)$"]'], nm: ['supermarket'], cor: '#1E8F52' },
-    { k: 'lazer', l: 'Lazer e esporte', d: 'praças, parques, academias', osm: ['nwr["leisure"~"^(park|playground|sports_centre|fitness_centre|pitch)$"]'], nm: ['park', 'playground'], cor: '#86D1A9' },
-    { k: 'banco', l: 'Bancos', d: 'agências e lotéricas', osm: ['nwr["amenity"="bank"]'], nm: ['bank'], cor: '#5C6B63' },
-    { k: 'shop', l: 'Shopping e comércio', d: 'shoppings e restaurantes', osm: ['nwr["shop"="mall"]', 'nwr["amenity"~"^(restaurant|cafe|fast_food)$"]'], nm: ['mall', 'restaurant'], cor: '#A5761B' }
+    { k: 'transp', l: 'Transporte público', d: 'pontos de ônibus e estações', osm: ['node["highway"="bus_stop"]', 'nwr["public_transport"="station"]', 'nwr["railway"~"station|halt|tram_stop"]'], nm: ['bus stop', 'bus station'], cor: '#007AFF' },
+    { k: 'escola', l: 'Escolas', d: 'educação infantil ao ensino médio', osm: ['nwr["amenity"~"^(school|kindergarten)$"]'], nm: ['school', 'kindergarten'], cor: '#FF9F0A' },
+    { k: 'saude', l: 'Saúde', d: 'hospitais, clínicas e UBS', osm: ['nwr["amenity"~"^(hospital|clinic|doctors)$"]', 'nwr["healthcare"~"^(hospital|clinic|centre)$"]'], nm: ['hospital', 'clinic'], cor: '#FF3B30' },
+    { k: 'farm', l: 'Farmácias', d: 'redes e independentes', osm: ['nwr["amenity"="pharmacy"]'], nm: ['pharmacy'], cor: '#AF52DE' },
+    { k: 'merc', l: 'Supermercados', d: 'supermercados e atacarejos', osm: ['nwr["shop"~"^(supermarket|wholesale)$"]'], nm: ['supermarket'], cor: '#34C759' },
+    { k: 'lazer', l: 'Lazer e esporte', d: 'praças, parques, academias', osm: ['nwr["leisure"~"^(park|playground|sports_centre|fitness_centre|pitch)$"]'], nm: ['park', 'playground'], cor: '#00C7BE' },
+    { k: 'banco', l: 'Bancos', d: 'agências e lotéricas', osm: ['nwr["amenity"="bank"]'], nm: ['bank'], cor: '#636366' },
+    { k: 'shop', l: 'Shopping e comércio', d: 'shoppings e restaurantes', osm: ['nwr["shop"="mall"]', 'nwr["amenity"~"^(restaurant|cafe|fast_food)$"]'], nm: ['mall', 'restaurant'], cor: '#A2845E' }
   ],
   dist(a, b, c, d) { const R = 6371000, x = (c - a) * Math.PI / 180, y = (d - b) * Math.PI / 180; const h = Math.sin(x / 2) ** 2 + Math.cos(a * Math.PI / 180) * Math.cos(c * Math.PI / 180) * Math.sin(y / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(h)); },
   classify(tags) {
@@ -205,14 +205,14 @@ function importarPlanilha(buf, st) {
   const pr = rows('Produtos'); if (!pr.length) throw new Error('A aba Produtos está vazia ou não existe.');
   const avisos = [];
   const mixR = rows('Mix'), crR = rows('Cronograma'), cuR = rows('Custos'), lz = rows('Lazer'), ad = rows('Aderência');
-  const cores = ['#8C8AA0', '#5C6B63', '#D89B26', '#2BB673', '#22212D', '#7A6CBE', '#86D1A9', '#A6B1AB'];
+  const cores = ['#8E8E93', '#636366', '#FF9F0A', '#34C759', '#22212D', '#AF52DE', '#00C7BE', '#AEAEB2'];
   const produtos = pr.map((r, i) => {
     const nome = S(r[0]) || 'Produto ' + String.fromCharCode(65 + i);
     const mix = mixR.filter(m => S(m[0]) === nome).map(m => ({ tipo: S(m[1]), un: N(m[2]), area: N(m[3]), preco: N(m[4]), perm: N(m[5]) })).filter(m => m.un > 0 && m.area > 0);
     if (!mix.length) throw new Error('O produto "' + nome + '" não tem linhas válidas na aba Mix.');
     let prazo = N(r[2]) || 30;
     let crono = crR.filter(c => S(c[0]) === nome).map((c, j) => ({ id: uid(), nome: S(c[1]), ini: N(c[2]), fim: N(c[3]), cor: cores[j % cores.length] }));
-    crono = crono.map(c => /obra/i.test(c.nome) && !/p[óo]s/i.test(c.nome) ? (prazo = Math.max(6, c.fim - premOf(st).preObra), { ...c, ini: premOf(st).preObra + 1, obra: true, cor: '#22212D' }) : /lan[çc]amento/i.test(c.nome) ? { ...c, vendas: true, cor: '#2BB673' } : c);
+    crono = crono.map(c => /obra/i.test(c.nome) && !/p[óo]s/i.test(c.nome) ? (prazo = Math.max(6, c.fim - premOf(st).preObra), { ...c, ini: premOf(st).preObra + 1, obra: true, cor: '#22212D' }) : /lan[çc]amento/i.test(c.nome) ? { ...c, vendas: true, cor: '#34C759' } : c);
     if (!crono.length) crono = CRONO0();
     const P = novoProduto(nome, false);
     Object.assign(P, { descr: S(r[1]), prazo, custo: N(r[3]) || 3000, vso: N(r[4]) || 3, comum: N(r[5]), garagem: N(r[6]), vagas: N(r[7]), permFin: N(r[8]), terrenoCash: N(r[9]),

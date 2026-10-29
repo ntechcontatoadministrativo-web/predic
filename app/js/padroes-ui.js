@@ -1,7 +1,7 @@
 'use strict';
 /* PREDIC · seção Base de dados e padrões: importação de planilhas, mapeamento, filtros, gráficos e aplicação ao estudo */
 
-const CORES_Q = ['#5BA8D6', '#6FBF9A', '#D8C35A', '#E0944A', '#E0644A'];
+const CORES_Q = ['#64D2FF', '#30D158', '#FFD60A', '#FF9F0A', '#FF453A'];
 const sinal = v => (Math.abs(v) < 0.0005 ? '' : v >= 0 ? '+' : '−') + pct(Math.abs(v));
 const milK = v => ok(v) ? 'R$ ' + num(v / 1000, v >= 1e6 ? 0 : 0) + ' mil' : '—';
 // Marcas "redondas" para eixos
@@ -63,7 +63,7 @@ function MapaPontos({ P, lat, lon }) {
     const s = ordenar(pts.map(r => r.m2)), q = [0.2, 0.4, 0.6, 0.8].map(p => quantil(s, p)), ci = v => q.filter(x => v > x).length;
     pts.forEach(r => L.circleMarker([r.lat, r.lon], { radius: 6, color: '#fff', weight: 1.2, fillColor: CORES_Q[ci(r.m2)], fillOpacity: 0.9 }).bindTooltip([r.nome, r.bairro, r.tipo].filter(Boolean).join(' · ') + '<br>' + mil(r.m2) + '/m²' + (r.dist != null ? ' · ' + num(r.dist, 1) + ' km' : '')).addTo(g));
     const b = L.latLngBounds(pts.map(r => [r.lat, r.lon]));
-    if (ok(lat) && ok(lon)) { L.circleMarker([lat, lon], { radius: 9, color: '#fff', weight: 2.5, fillColor: '#1D1C27', fillOpacity: 1 }).bindTooltip('Terreno').addTo(g); b.extend([lat, lon]); }
+    if (ok(lat) && ok(lon)) { L.circleMarker([lat, lon], { radius: 9, color: '#fff', weight: 2.5, fillColor: '#0A84FF', fillOpacity: 1 }).bindTooltip('Terreno').addTo(g); b.extend([lat, lon]); }
     m.current.fitBounds(b.pad(0.12));
     const t = setTimeout(() => m.current && m.current.invalidateSize(), 60); return () => clearTimeout(t);
   }, [P, lat, lon]);

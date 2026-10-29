@@ -121,13 +121,13 @@ function Senha({ value, onChange, placeholder, auto = 'current-password', autoFo
 // Painel de marca à esquerda das telas de entrada
 const PainelMarca = () => html`<aside className="auth-brand">
   <div className="auth-sky" aria-hidden="true"><svg viewBox="0 0 600 260" preserveAspectRatio="xMidYMax slice">
-    <defs><linearGradient id="ab-t" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#D9B46C" stopOpacity=".55" /><stop offset="1" stopColor="#D9B46C" stopOpacity="0" /></linearGradient></defs>
+    <defs><linearGradient id="ab-t" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#FFFFFF" stopOpacity=".85" /><stop offset="1" stopColor="#FFFFFF" stopOpacity=".15" /></linearGradient></defs>
     ${[[20, 120, 46], [72, 70, 38], [116, 150, 54], [176, 96, 40], [222, 190, 58], [286, 128, 44], [336, 220, 62], [404, 150, 46], [456, 110, 40], [502, 176, 52], [560, 92, 36]].map(([x, h, w], i) => html`<g key=${i}><rect x=${x} y=${260 - h} width=${w} height=${h} rx="3" fill="url(#ab-t)" />
-      ${Array.from({ length: Math.floor(h / 22) }, (_, j) => html`<rect key=${j} x=${x + 8} y=${260 - h + 12 + j * 22} width=${w - 16} height="2" fill="#F6E4AE" opacity=${(i * 7 + j * 3) % 5 === 0 ? 0.55 : 0.12} />`)}</g>`)}
-    <path d="M0 210 C120 200 180 150 260 140 S420 70 600 30" fill="none" stroke="#5EEAB0" strokeWidth="2" strokeDasharray="1 7" strokeLinecap="round" opacity=".7" />
+      ${Array.from({ length: Math.floor(h / 22) }, (_, j) => html`<rect key=${j} x=${x + 8} y=${260 - h + 12 + j * 22} width=${w - 16} height="2" fill="#0A84FF" opacity=${(i * 7 + j * 3) % 5 === 0 ? 0.5 : 0.12} />`)}</g>`)}
+    <path d="M0 210 C120 200 180 150 260 140 S420 70 600 30" fill="none" stroke="#0A84FF" strokeWidth="2.5" strokeDasharray="1 8" strokeLinecap="round" opacity=".55" />
   </svg></div>
   <div className="auth-brand-in">
-    <${Logo} s=${44} sub="Inteligência para incorporação" claro=${true} />
+    <${Logo} s=${44} sub="Inteligência para incorporação" />
     <div className="auth-pitch">
       <h1>Decida o próximo empreendimento com a precisão de um comitê.</h1>
       <p>Localização, legislação, mercado, produto e fluxo de caixa mensal num só estudo, com dados públicos ao vivo e um analista de IA que lê tudo.</p>

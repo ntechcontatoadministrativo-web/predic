@@ -37,7 +37,7 @@ function Painel({ ctx }) {
     </div>
     <div className="grid g21">
       <${Card} title="Fluxo de caixa acumulado" sub="após financiamento à produção · cenário base · passe o mouse para ver cada mês">
-        <${LineChart} series=${[{ name: 'Caixa acumulado', color: '#1E8F52', values: R.cum, area: true, width: 2.2 }]} markers=${[{ x: R.expoMes - 1, label: 'exposição máx. · M' + R.expoMes, color: '#B23A22' }, { x: Math.min(R.cum.length - 1, R.payback - 1), label: 'payback · M' + R.payback, color: '#1E8F52' }]} xLab=${i => 'M' + (i + 1)} />
+        <${LineChart} series=${[{ name: 'Caixa acumulado', color: '#34C759', values: R.cum, area: true, width: 2.2 }]} markers=${[{ x: R.expoMes - 1, label: 'exposição máx. · M' + R.expoMes, color: '#FF3B30' }, { x: Math.min(R.cum.length - 1, R.payback - 1), label: 'payback · M' + R.payback, color: '#34C759' }]} xLab=${i => 'M' + (i + 1)} />
         <div className="note" style=${{ marginTop: 8 }}>Exposição máxima de ${milhoes(Math.abs(R.expo))} no mês ${R.expoMes}; caixa volta a zero no mês ${R.payback}. Entrega das chaves no mês ${R.entrega}.</div>
       <//>
       <${Card} title="Critérios do comitê" sub="cenário base">
@@ -79,7 +79,7 @@ function Painel({ ctx }) {
 function AjusteRapido({ ctx }) {
   const { st, M, set, setProd } = ctx; const { PR, D } = M;
   const sl = (l, v, min, max, step, fmt, on) => html`<div className="field" style=${{ flex: '1 1 160px' }}><label>${l} · <span className="mono" style=${{ color: 'var(--ink)' }}>${fmt(v)}</span></label>
-    <input type="range" min=${min} max=${max} step=${step} value=${v} onChange=${e => on(parseFloat(e.target.value))} style=${{ accentColor: '#2BB673' }} /></div>`;
+    <input type="range" min=${min} max=${max} step=${step} value=${v} onChange=${e => on(parseFloat(e.target.value))} style=${{ accentColor: '#34C759' }} /></div>`;
   return html`<div className="card noprint" style=${{ padding: '12px 16px', display: 'flex', gap: 18, flexWrap: 'wrap', alignItems: 'flex-end' }}>
     ${sl('Preço médio R$/m²', Math.round(D.preco), Math.round(D.preco * 0.6), Math.round(D.preco * 1.4), 10, v => num(v), v => { const k = v / (D.preco || v); setProd({ mix: PR.mix.map(m => ({ ...m, preco: Math.round(m.preco * k) })) }); })}
     ${sl('Custo de obra R$/m²', PR.custo, Math.round(PR.custo * 0.6), Math.round(PR.custo * 1.5), 10, v => num(v), v => setProd({ custo: v }))}
@@ -315,7 +315,7 @@ function Produto({ ctx }) {
       <//>
       <${Card} title="Aderência produto × demanda" sub=${ader + '/100 · ' + (ader >= 80 ? 'alta' : ader >= 60 ? 'média' : 'baixa')}>
         ${ADER_CRIT.map((c, i) => { const n = PR.ader[i] ?? 50; return html`<div key=${i} style=${{ display: 'grid', gridTemplateColumns: 'minmax(0,1.3fr) minmax(0,1.5fr) 34px', gap: 10, alignItems: 'center', padding: '5px 0' }}>
-          <span style=${{ fontSize: 12 }}>${c}</span><input type="range" min="0" max="100" value=${n} style=${{ accentColor: n >= 80 ? '#1E8F52' : n >= 60 ? '#D89B26' : '#E0644A' }} onChange=${e => setProd({ ader: ADER_CRIT.map((_, j) => j === i ? +e.target.value : (PR.ader[j] ?? 50)) })} /><b className="mono" style=${{ textAlign: 'right' }}>${n}</b></div>`; })}
+          <span style=${{ fontSize: 12 }}>${c}</span><input type="range" min="0" max="100" value=${n} style=${{ accentColor: n >= 80 ? '#34C759' : n >= 60 ? '#FF9F0A' : '#FF3B30' }} onChange=${e => setProd({ ader: ADER_CRIT.map((_, j) => j === i ? +e.target.value : (PR.ader[j] ?? 50)) })} /><b className="mono" style=${{ textAlign: 'right' }}>${n}</b></div>`; })}
         <div className="note">Nota de 0 a 100 por critério, dada pelo analista a partir do estudo de mercado. A aderência é a média.</div>
       <//>
     </div>
@@ -387,7 +387,7 @@ function Orcamento({ ctx }) {
   const { st, M, setProd, real } = ctx; const { PR, D, R } = M;
   const sin = real.sinapi; const cub = st.estudo.cub;
   const caps = [['sfh', 'Plano empresário (SFH)', 60, 10.5], ['sfh40', 'SFH conservador', 40, 11.5], ['auto', 'Autofinanciado', 0, 10.5], ['assoc', 'Crédito associativo', 0, 10.5], ['livre', 'Personalizado']];
-  const fontes = (() => { const prop = Math.abs(R.expo), fin = R.sacado, perm = R.permPaga; const rec = Math.max(0, M.CTE - prop - fin - perm); return [['Recebíveis das vendas', rec, '#2BB673'], ['Financiamento à produção', fin, 'var(--ink2)'], ['Permuta financeira do terreno', perm, '#D89B26'], ['Capital próprio do incorporador', prop, '#7A6CBE']]; })();
+  const fontes = (() => { const prop = Math.abs(R.expo), fin = R.sacado, perm = R.permPaga; const rec = Math.max(0, M.CTE - prop - fin - perm); return [['Recebíveis das vendas', rec, '#34C759'], ['Financiamento à produção', fin, 'var(--ink2)'], ['Permuta financeira do terreno', perm, '#FF9F0A'], ['Capital próprio do incorporador', prop, '#AF52DE']]; })();
   const cp = Math.abs(R.expo) / M.CTE;
   const PO = M.PM.preObra, rows = PR.crono.map(c => c.obra ? { ...c, ini: PO + 1, fim: PO + PR.prazo } : c);
   const T = Math.max(12, Math.ceil(Math.max(...rows.map(r => r.fim)) / 6) * 6);
@@ -430,7 +430,7 @@ function Orcamento({ ctx }) {
         <div className="kv"><span>RCE · resultado sobre capital exposto</span><b>${num(R.lucro / Math.abs(R.expo || 1), 2)}×</b></div>
       <//>
       <${Card} title="Curva S · desembolso acumulado" sub=${milhoes(tot) + ' no ciclo · 25% no mês ' + mes(25) + ', 50% no mês ' + mes(50) + ', 75% no mês ' + mes(75)}>
-        <${LineChart} h=${200} series=${[{ name: 'Desembolso no mês', color: 'var(--zero)', values: c.map(v => v / tot * 100 * 8), type: 'bar' }, { name: 'Acumulado', color: '#1E8F52', values: curva, width: 2.4 }]} yMin=${0} yMax=${100} yFmt=${v => num(v, 0) + '%'} tipFmt=${v => num(v, 1) + '%'} xLab=${i => 'M' + (i + 1)} />
+        <${LineChart} h=${200} series=${[{ name: 'Desembolso no mês', color: 'var(--zero)', values: c.map(v => v / tot * 100 * 8), type: 'bar' }, { name: 'Acumulado', color: '#34C759', values: curva, width: 2.4 }]} yMin=${0} yMax=${100} yFmt=${v => num(v, 0) + '%'} tipFmt=${v => num(v, 1) + '%'} xLab=${i => 'M' + (i + 1)} />
         <div className="note" style=${{ marginTop: 6 }}>Barras: desembolso mensal (escala relativa ×8 para leitura). Linha: % acumulado do CTE.</div>
       <//>
     </div>
@@ -442,7 +442,7 @@ function Orcamento({ ctx }) {
           <td><div className="gantt-tr" title=${r.nome + ': M' + r.ini + ' – M' + r.fim}><i style=${{ left: (r.ini / T * 100) + '%', width: Math.max(1, (r.fim - r.ini) / T * 100) + '%', background: corEtapa(r.cor) }}></i></div></td>
           <td className="noprint">${r.obra ? null : html`<button className="rowx" onClick=${() => setProd({ crono: PR.crono.filter(x => x.id !== r.id) })}>×</button>`}</td></tr>`)}
       </tbody></table></div>
-      <button className="add" onClick=${() => setProd({ crono: PR.crono.concat([{ id: uid(), nome: 'Nova etapa', ini: 0, fim: 6, cor: '#A6B1AB' }]) })}>+ etapa</button>
+      <button className="add" onClick=${() => setProd({ crono: PR.crono.concat([{ id: uid(), nome: 'Nova etapa', ini: 0, fim: 6, cor: '#AEAEB2' }]) })}>+ etapa</button>
     <//>
   </div>`;
 }
@@ -550,8 +550,8 @@ function Financeiro({ ctx }) {
     </div>
     <${PremissasMotor} ctx=${ctx} />
     <${Card} title="Fluxo acumulado · receitas × CTE" sub="antes do financiamento à produção" right=${html`<${Seg} opts=${KS.map(k => [k, KSL[k]])} value=${cf} onChange=${v => set({ cenFluxo: v })} />`}>
-      <${LineChart} h=${250} series=${[{ name: 'Receitas acumuladas', color: '#1E8F52', values: rc, width: 2.2 }, { name: 'CTE acumulado', color: 'var(--ink)', values: cc, width: 2.2 }, { name: 'Saldo acumulado', color: '#D89B26', values: sc, area: true, width: 1.8, dash: '6 4' }]} xLab=${i => 'M' + (i + 1)} />
-      <div style=${{ marginTop: 8 }}><${Legend} items=${[{ l: 'Receitas · ' + milhoes(ar), color: '#1E8F52' }, { l: 'CTE · ' + milhoes(ac2), color: 'var(--ink)' }, { l: 'Saldo · mín. ' + milhoes(Math.min(...sc)) + ' · final ' + milhoes(ar - ac2), color: '#D89B26' }]} /></div>
+      <${LineChart} h=${250} series=${[{ name: 'Receitas acumuladas', color: '#34C759', values: rc, width: 2.2 }, { name: 'CTE acumulado', color: 'var(--ink)', values: cc, width: 2.2 }, { name: 'Saldo acumulado', color: '#FF9F0A', values: sc, area: true, width: 1.8, dash: '6 4' }]} xLab=${i => 'M' + (i + 1)} />
+      <div style=${{ marginTop: 8 }}><${Legend} items=${[{ l: 'Receitas · ' + milhoes(ar), color: '#34C759' }, { l: 'CTE · ' + milhoes(ac2), color: 'var(--ink)' }, { l: 'Saldo · mín. ' + milhoes(Math.min(...sc)) + ' · final ' + milhoes(ar - ac2), color: '#FF9F0A' }]} /></div>
     <//>
   </div>`;
 }
@@ -570,7 +570,7 @@ function Sensib({ ctx }) {
       ${M.matrizes.map((m, j) => html`<${Card} key=${j} title=${'Combinação ' + (j + 1)} sub=${m.nome}>
         <div className="heat" style=${{ gridTemplateColumns: '54px repeat(5,minmax(0,1fr))' }}>
           <div className="hd">${m.eixoY.split(' ')[0]} ↓</div>${m.cols.map((c, i) => html`<div key=${i} className="hd">${c}</div>`)}
-          ${m.rows.map((r, i) => [html`<div key=${'l' + i} className="hd" style=${{ textAlign: 'right' }}>${r.l}</div>`, ...r.cells.map((c, k) => html`<div key=${i + '-' + k} className=${'p-' + c.k} style=${{ outline: c.mk === 'B' ? '2px solid var(--ink)' : 'none' }} title=${m.eixoX + ' ' + m.cols[k] + ' · ' + m.eixoY + ' ' + r.l + ' → ' + c.txt}>${c.txt}${c.mk ? html`<span className="mk" style=${{ background: c.mk === 'P' ? '#B23A22' : c.mk === 'O' ? '#1E8F52' : '#3B3A4E' }}>${c.mk}</span>` : null}</div>`)])}
+          ${m.rows.map((r, i) => [html`<div key=${'l' + i} className="hd" style=${{ textAlign: 'right' }}>${r.l}</div>`, ...r.cells.map((c, k) => html`<div key=${i + '-' + k} className=${'p-' + c.k} style=${{ outline: c.mk === 'B' ? '2px solid var(--ink)' : 'none' }} title=${m.eixoX + ' ' + m.cols[k] + ' · ' + m.eixoY + ' ' + r.l + ' → ' + c.txt}>${c.txt}${c.mk ? html`<span className="mk" style=${{ background: c.mk === 'P' ? '#FF3B30' : c.mk === 'O' ? '#34C759' : '#3B3A4E' }}>${c.mk}</span>` : null}</div>`)])}
         </div>
         <div className="xt" style=${{ justifyContent: 'center' }}>${m.eixoX} →</div>
         <div className="note" style=${{ marginTop: 8 }}>No base (B), ${nome} é ${m.B.txt}. No extremo pessimista (P), vai para ${m.P.txt} e ${est(m.P.k)}; no otimista (O), ${m.O.txt}. ${m.nOk} das 25 combinações atendem o comitê.</div>
@@ -580,7 +580,7 @@ function Sensib({ ctx }) {
       <${Card} title="Qual variável mais pesa" sub=${(ind === 'margem' ? 'margem líquida' : 'TIR anual') + ' · variação em p.p.'}>
         ${M.tornado.map((t, i) => html`<div key=${i} style=${{ display: 'grid', gridTemplateColumns: '20px minmax(0,1.2fr) minmax(0,2fr) 90px', gap: 8, alignItems: 'center', padding: '7px 0', borderBottom: '1px solid var(--line2)' }}>
           <b className="mono">${i + 1}</b><span>${t.l}<div className="sub">${t.faixa}</div></span>
-          <div style=${{ display: 'flex', height: 14 }}><div style=${{ flex: 1, display: 'flex', justifyContent: 'flex-end' }}><i style=${{ display: 'block', width: Math.abs(Math.min(t.neg, 0)) / tMx * 100 + '%', background: '#E0644A', borderRadius: '4px 0 0 4px' }}></i></div><div style=${{ width: 1, background: 'var(--ink)' }}></div><div style=${{ flex: 1 }}><i style=${{ display: 'block', height: '100%', width: Math.max(t.pos, 0) / tMx * 100 + '%', background: '#1E8F52', borderRadius: '0 4px 4px 0' }}></i></div></div>
+          <div style=${{ display: 'flex', height: 14 }}><div style=${{ flex: 1, display: 'flex', justifyContent: 'flex-end' }}><i style=${{ display: 'block', width: Math.abs(Math.min(t.neg, 0)) / tMx * 100 + '%', background: '#FF3B30', borderRadius: '4px 0 0 4px' }}></i></div><div style=${{ width: 1, background: 'var(--ink)' }}></div><div style=${{ flex: 1 }}><i style=${{ display: 'block', height: '100%', width: Math.max(t.pos, 0) / tMx * 100 + '%', background: '#34C759', borderRadius: '0 4px 4px 0' }}></i></div></div>
           <span className="mono" style=${{ textAlign: 'right', fontSize: 11 }}>${num(t.neg, 1)} / +${num(t.pos, 1)}</span></div>`)}
       <//>
       <div className="grid">

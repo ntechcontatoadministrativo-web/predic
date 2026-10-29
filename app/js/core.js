@@ -33,8 +33,8 @@ const NIVM = { ok: 'baixo', at: 'médio', cr: 'alto', na: '—' };
 const NIV = v => { const x = norm(v); return /crit|alto/.test(x) ? 'cr' : /aten|medio|moder/.test(x) ? 'at' : /regular|ok|adequ|baixo|livre|emitid|conclu/.test(x) ? 'ok' : 'na'; };
 const KS = ['pessimista', 'base', 'otimista'];
 const KSL = { pessimista: 'Pessimista', base: 'Base', otimista: 'Otimista' };
-const KSC = { pessimista: '#E0644A', base: 'var(--ink)', otimista: '#1E8F52' };
-const CAT = ['#1E8F52', '#D89B26', '#7A6CBE', '#E0644A', '#5BA8D6'];
+const KSC = { pessimista: '#FF3B30', base: 'var(--ink)', otimista: '#34C759' };
+const CAT = ['#34C759', '#FF9F0A', '#AF52DE', '#FF3B30', '#007AFF'];
 const CUSTO_CAMPOS = [['Projetos e aprovações', '% VGV', 'proj', 2.5], ['Administração', '% VGV', 'adm', 4], ['Outorga e taxas', 'R$', 'outorga', 1800000], ['Incorporação / cartório', '% VGV', 'cart', 0.8], ['Marketing / stand', '% VGV', 'mkt', 2], ['Corretagem', '% vendas', 'corr', 3.5], ['Pós-obra', '% obra', 'pos', 1], ['Tributos (RET)', '% receita', 'ret', 4], ['Frete e logística regional', '% obra', 'frete', 0]];
 const CEN_CAMPOS = [['preco', 'Preço de venda', '%', 'variação do R$/m² de tabela'], ['vso', 'Velocidade de vendas', '%', 'variação da VSO mensal'], ['custo', 'Custo de obra', '%', 'erro de orçamento ou contratação'], ['prazo', 'Prazo de obra', 'meses', 'atraso (+) ou antecipação (−)'], ['tma', 'TMA e juros', 'p.p.', 'custo do capital e do financiamento'], ['incc', 'INCC acima do previsto', '% a.a.', 'inflação da obra acima dos preços'], ['distrato', 'Distratos', '% vendas', 'canceladas na entrega']];
 const SCEN0 = { pessimista: { preco: -8, vso: -30, custo: 10, prazo: 4, tma: 2, incc: 3, distrato: 15 }, base: { preco: 0, vso: 0, custo: 0, prazo: 0, tma: 0, incc: 0, distrato: 5 }, otimista: { preco: 5, vso: 20, custo: -4, prazo: -2, tma: -1, incc: 0, distrato: 2 } };
@@ -180,10 +180,10 @@ const TPL = {
 const EST_VAZIO = { nome: 'Novo estudo', codigo: 'VIABILIDADE-' + hojeBR().replace(/\//g, '.'), endereco: '', lote: '', matricula: '', cartorio: '', area: 0, zona: '', classe: 'urbana', ca: 0, to: 0, gabarito: 0, prazoReg: 9, demanda: 0, renda: 0, perfil: '', perfilDesc: '', cub: 0, cubFonte: '' };
 const EST_EX = { nome: 'Residencial Alta Vista', codigo: 'VIABILIDADE-EXEMPLO', endereco: 'Rodovia Augusto Montenegro, 4120, Belém, PA', lote: 'Lote de esquina, testadas de 64 m e 50 m.', matricula: '41.328', cartorio: 'CRI 2º ofício', area: 3200, zona: 'ZR-4', classe: 'urbana', ca: 4, to: 50, gabarito: 80, prazoReg: 9, demanda: 1240, renda: 9.4, perfil: 'Classe B', perfilDesc: 'família, 2 e 3 dorm.', cub: 0, cubFonte: '' };
 const CRONO0 = () => [
-  { id: uid(), nome: 'Aquisição e due diligence', ini: 0, fim: 6, cor: '#8C8AA0' }, { id: uid(), nome: 'Projetos e aprovações', ini: 2, fim: 9, cor: '#5C6B63' },
-  { id: uid(), nome: 'Registro de incorporação', ini: 8, fim: 11, cor: '#D89B26' }, { id: uid(), nome: 'Lançamento e vendas', ini: 10, fim: 39, cor: '#2BB673', vendas: true },
-  { id: uid(), nome: 'Obra', ini: 7, fim: 36, cor: '#22212D', obra: true }, { id: uid(), nome: 'Habite-se e averbação', ini: 36, fim: 40, cor: '#7A6CBE' },
-  { id: uid(), nome: 'Repasses e entrega', ini: 37, fim: 48, cor: '#86D1A9' }
+  { id: uid(), nome: 'Aquisição e due diligence', ini: 0, fim: 6, cor: '#8E8E93' }, { id: uid(), nome: 'Projetos e aprovações', ini: 2, fim: 9, cor: '#636366' },
+  { id: uid(), nome: 'Registro de incorporação', ini: 8, fim: 11, cor: '#FF9F0A' }, { id: uid(), nome: 'Lançamento e vendas', ini: 10, fim: 39, cor: '#34C759', vendas: true },
+  { id: uid(), nome: 'Obra', ini: 7, fim: 36, cor: '#22212D', obra: true }, { id: uid(), nome: 'Habite-se e averbação', ini: 36, fim: 40, cor: '#AF52DE' },
+  { id: uid(), nome: 'Repasses e entrega', ini: 37, fim: 48, cor: '#00C7BE' }
 ];
 const novoProduto = (nome, ex) => ({
   id: uid(), nome, descr: ex ? 'Torre única residencial com 24 pavimentos-tipo e 4 unidades por andar, voltada a famílias de classe B. Apartamentos de 2 e 3 dormitórios, garden no térreo, lazer completo no embasamento e 1,3 vaga por unidade.' : '',
@@ -251,8 +251,8 @@ function compute(st) {
     expo: Math.abs(R.expo) / R.vgv * 100 <= C.expoMax, payback: R.payback <= C.paybackMax
   };
   const score = [crit.tir, crit.vpl, crit.margem, crit.expo].filter(Boolean).length;
-  const verdict = score === 4 && crit.payback ? ['Aprovar', '#2BB673', 'Todos os critérios do comitê atendidos no cenário base.']
-    : score >= 2 ? ['Aprovar com ressalvas', '#D89B26', 'Parte dos critérios atendida; veja os itens em vermelho no painel.'] : ['Reprovar', '#E0644A', 'O cenário base não remunera o capital acima das metas do comitê.'];
+  const verdict = score === 4 && crit.payback ? ['Aprovar', '#34C759', 'Todos os critérios do comitê atendidos no cenário base.']
+    : score >= 2 ? ['Aprovar com ressalvas', '#FF9F0A', 'Parte dos critérios atendida; veja os itens em vermelho no painel.'] : ['Reprovar', '#FF3B30', 'O cenário base não remunera o capital acima das metas do comitê.'];
 
   // mercado
   const cs = st.concs.filter(c => c.estoque > 0 && c.m2 > 0);
@@ -274,7 +274,7 @@ function compute(st) {
   if (aff && aff.ratio) premissas.push({ t: 'Renda necessária para o ticket médio (80% financiado a ' + num(juros, 2) + '% a.a., SAC 360 meses, 30% da renda) é ' + pct(aff.ratio, 0) + ' da renda média local.', v: mil(aff.renda) + '/mês', k: aff.ratio <= 1 ? 'ok' : aff.ratio <= 1.3 ? 'at' : 'cr' });
 
   // CTE
-  const usos = [['Terreno', R.terreno, '#2BB673'], ['Incorporação / cartório', R.cartorio, '#8C8AA0'], ['Marketing / stand', R.marketing, '#D89B26'], ['Projetos, licenças e outorga', R.projetos + R.outorga, '#5C6B63'], ['Administração', R.admin, '#7A6CBE'], ['Obra / construção', R.obra, 'var(--ink2)'], ['Pós-obra', R.posObra, '#93A099'], ['Tributos (RET ' + num(PR.custos?.ret ?? 4, 1) + '%)', R.tributos, '#E0644A'], ['Juros do financiamento', R.jurosTotal, '#B23A22'], ['Corretagem', R.corretagem, '#A5761B']];
+  const usos = [['Terreno', R.terreno, '#34C759'], ['Incorporação / cartório', R.cartorio, '#8E8E93'], ['Marketing / stand', R.marketing, '#FF9F0A'], ['Projetos, licenças e outorga', R.projetos + R.outorga, '#636366'], ['Administração', R.admin, '#AF52DE'], ['Obra / construção', R.obra, 'var(--ink2)'], ['Pós-obra', R.posObra, '#93A099'], ['Tributos (RET ' + num(PR.custos?.ret ?? 4, 1) + '%)', R.tributos, '#FF3B30'], ['Juros do financiamento', R.jurosTotal, '#FF3B30'], ['Corretagem', R.corretagem, '#A2845E']];
   const CTE = R.cte;
 
   // riscos
