@@ -294,7 +294,7 @@ function Estudio({ inicial, cfg, ai, perfil, voltar, abrirConfig, sair, recarreg
   };
 
   const idx = Math.max(0, SECS.findIndex(s => s[0] === st.sec));
-  const VIEWS = { painel: Painel, local: Local, legis: Legis, mercado: Mercado, dados: BaseDados, produto: Produto, orcamento: Orcamento, financeiro: Financeiro, sensibilidade: Sensib, conclusao: Conclusao };
+  const VIEWS = { painel: Painel, local: Local, legis: Legis, mercado: Mercado, dados: BaseDados, produto: Produto, projeto: Projeto, orcamento: Orcamento, financeiro: Financeiro, sensibilidade: Sensib, conclusao: Conclusao };
   const lista = printAll ? SECS : [SECS[idx]];
   const porProduto = s => !['local', 'legis', 'mercado'].includes(s);
   const ir = k => { set({ sec: k }); setMenu(false); window.scrollTo(0, 0); };

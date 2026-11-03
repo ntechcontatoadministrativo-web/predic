@@ -38,6 +38,14 @@ Seção 05 do estudo. Importe qualquer planilha de mercado (.xlsx, .xls, .ods, .
 - **Aplicação no estudo**: preços do mix, VSO, concorrentes e alertas de risco num clique (Ctrl+Z desfaz); exportação da análise em .xlsx; botão *Interpretar com IA*, e o assistente passa a enxergar o resumo da base.
 - **Filtros** por bairro, tipologia, padrão, período e raio do terreno. *Modelo de planilha* e *Base de exemplo* ajudam a começar.
 
+## Projeto 3D e implantação
+
+Seção 07 do estudo, gerada a partir das especificações do produto (tipo de edificação, pavimentos, unidades por andar, mix, vagas e lazer). Estudo de massa para a viabilidade: dimensões indicativas, não substituem o projeto de arquitetura.
+
+- **Implantação no mapa**: desenhe o terreno real sobre o satélite ou o mapa (clique nos vértices; edite, insira ou remova vértices depois), escolha a frente do lote e o recuo. Torres, casas, guarita, rampa da garagem, piscina, quadra, salão e playground são implantados automaticamente; arraste cada estrutura pelo rótulo, gire, redimensione, adicione ou remova. O PREDIC avisa o que ficou fora do lote/recuo ou sobreposto.
+- **Modelo 3D**: volumetria com térreo, pavimentos-tipo com janelas, ático, lazer e subsolos; gire, aproxime e mova a câmera; estudo de sol e sombras pela latitude do terreno, hora e data. Exporta PNG ou salva a vista como imagem do produto.
+- **Plantas baixas de todos os níveis**: subsolos com vagas numeradas (2,5 × 5,0 m, vias de 5,5 m, 2% PcD e 5% idosos junto ao núcleo), térreo/implantação, pavimento-tipo com cada apartamento dividido em cômodos e áreas, cobertura com casa de máquinas e reservatórios; no condomínio de casas, a casa tipo (térrea ou sobrado). Cotas, escala gráfica e norte; exporta SVG e entra no relatório PDF.
+- **Conferências**: taxa de ocupação, área computável × potencial (CA), altura × gabarito, unidades do projeto × mix e vagas que cabem × previstas.
 ## Outros recursos
 
 - **Biblioteca de estudos**: vários estudos, com busca, duplicação, backup (.json) e importação/exportação de planilha (.xlsx).
@@ -72,6 +80,8 @@ app/            front-end (React + htm, sem etapa de compilação)
   js/ia-core.js   simulação, busca de meta e contexto do estudo para a IA
   js/padroes.js   planilhas livres, mapeamento de colunas e motor de padrões (estatística, regressão, comparáveis)
   js/padroes-ui.js seção Base de dados e padrões (importação, gráficos, mapa, aplicação ao estudo)
+  js/projeto.js    projeto preliminar: implantação, pavimento-tipo, cômodos, garagem, níveis e conferências
+  js/projeto-ui.js seção Projeto 3D e implantação (mapa, modelo 3D em canvas, plantas em SVG)
   js/data.js      APIs públicas, IndexedDB, imagens, planilhas
   js/ui.js        componentes, gráficos, mapa, Markdown
   js/sections.js  as seções do estudo

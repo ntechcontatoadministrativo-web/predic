@@ -181,7 +181,7 @@ export const CHAT_TOOLS = [
   {
     name: 'navegar',
     description: 'Abre uma seção do estudo na tela do usuário.',
-    input_schema: { type: 'object', properties: { secao: { type: 'string', enum: ['painel', 'local', 'legis', 'mercado', 'dados', 'produto', 'orcamento', 'financeiro', 'sensibilidade', 'conclusao'] } }, required: ['secao'], additionalProperties: false }
+    input_schema: { type: 'object', properties: { secao: { type: 'string', enum: ['painel', 'local', 'legis', 'mercado', 'dados', 'produto', 'projeto', 'orcamento', 'financeiro', 'sensibilidade', 'conclusao'] } }, required: ['secao'], additionalProperties: false }
   }
 ].map(t => ({ ...t, eager_input_streaming: true }));
 
